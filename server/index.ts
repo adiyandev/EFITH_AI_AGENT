@@ -416,12 +416,10 @@ async function getAgentTools(): Promise<AgentTool[]> {
   return tools;
 }
 
-let googleRequestCookie: string | undefined;
-
-async function runAgentTool(tool: AgentTool, rawArguments: string) {
+async function runAgentTool(tool: AgentTool, rawArguments: string, googleCookie?: string) {
   const args = rawArguments ? JSON.parse(rawArguments) : {};
   if (tool.mcpServerId === "web" && tool.mcpToolName === "search") return runWebSearch(String(args.query ?? ""));
-  if (tool.mcpServerId === "google") return runGoogleTool(tool.mcpToolName, args, googleRequestCookie);
+  if (tool.mcpServerId === "google") return runGoogleTool(tool.mcpToolName, args, googleCookie);
   return runMcpTool(tool, rawArguments);
 }
 
@@ -716,7 +714,7 @@ app.get("/api/providers", async () => {
 });
 
 app.post<{ Body: ProviderRequest }>("/api/providers/models", async (request, reply) => {
-  googleRequestCookie = String(request.headers.cookie ?? "").split(";").map(v=>v.trim()).find(v=>v.startsWith(`${getGoogleCookieName()}=`))?.split("=")[1];
+  const googleRequestCookie = String(request.headers.cookie ?? "").split(";").map(v=>v.trim()).find(v=>v.startsWith(`${getGoogleCookieName()}=`))?.split("=")[1];
   const provider = request.body?.provider ?? "gemini";
   const config = getProviderConfig(provider, request.body?.apiKey);
 
@@ -840,7 +838,7 @@ app.post<{ Body: ChatRequest }>("/api/chat", async (request, reply) => {
             ? `GitHub · ${tool.mcpToolName}`
             : `${tool.mcpServerId} · ${tool.mcpToolName}`;
           try {
-            const toolResult = await runAgentTool(tool, call.function.arguments);
+            const toolResult = await runAgentTool(tool, call.function.arguments, googleRequestCookie);
             toolActivities.push({
               id: call.id,
               label: toolLabel,
