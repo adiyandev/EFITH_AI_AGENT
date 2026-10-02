@@ -70,6 +70,7 @@ export function ChatView({ settings }: ChatViewProps) {
       const response = await fetch(`${settings.apiUrl || ""}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         signal: controller.signal,
         body: JSON.stringify({
           provider: settings.provider,
