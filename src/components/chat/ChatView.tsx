@@ -9,7 +9,7 @@ type ChatMessage = {
   role: "user" | "assistant";
   content: string;
   auth?: { providerName?: string; mcpServerId?: string; authUrl?: string };
-  toolActivities?: { id: string; label: string; durationMs: number; status: "done" | "error" }[];
+  toolActivities?: { id: string; label: string; durationMs: number; status: "done" | "error" | "running" }[];
 };
 
 type ChatViewProps = { settings: EfithSettings };
