@@ -265,7 +265,7 @@ async function callOpenAICompatible(
 
     // Groq GPT-OSS can occasionally emit a function call on a request where
     // no MCP tools were supplied. Recover with a normal Groq chat model.
-    if (provider === "groq" && tools.length === 0 && response.status === 400 && /tool choice is none/i.test(detail)) {
+    if (provider === "groq" && response.status === 400 && /tool choice is none/i.test(detail)) {
       app.log.warn({ model, fallbackModel: "llama-3.3-70b-versatile" }, "Groq emitted a tool call without available tools; retrying with fallback model");
       const fallbackResponse = await fetch(`${config.baseUrl}/chat/completions`, {
         method: "POST",
