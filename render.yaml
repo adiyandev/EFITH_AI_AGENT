@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: efith-api
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm run server
+    healthCheckPath: /api/health
+    envVars:
+      - key: EFITH_PROVIDER
+        value: openai-compatible
+      - key: EFITH_API_BASE_URL
+        value: https://api.openai.com/v1
+      - key: EFITH_MODEL
+        value: gpt-4o-mini
+      - key: EFITH_API_KEY
+        sync: false
