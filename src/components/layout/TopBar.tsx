@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
-import { ChevronDown, Menu, RefreshCw } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { Check, ChevronDown, LoaderCircle, Menu, RefreshCw, Search, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import type { EfithSettings, Provider } from "../settings/SettingsModal";
 
 type ModelOption = { provider: Provider; model: string };
-
 type TopBarProps = {
   sidebarOpen: boolean;
   onOpenSidebar: () => void;
@@ -11,117 +11,117 @@ type TopBarProps = {
   onChange: (changes: Partial<EfithSettings>) => void;
 };
 
-const providerLabels: Record<Provider, string> = {
-  openai: "OpenAI",
-  gemini: "Gemini",
-  anthropic: "Claude",
-  groq: "Groq",
-};
+const providerLabels: Record<Provider, string> = { openai: "OpenAI", gemini: "Gemini", anthropic: "Claude", groq: "Groq" };
+const providerIcons: Record<Provider, string> = { openai: "O", gemini: "G", anthropic: "C", groq: "GQ" };
 
 export function TopBar({ sidebarOpen, onOpenSidebar, settings, onChange }: TopBarProps) {
   const [open, setOpen] = useState(false);
   const [models, setModels] = useState<ModelOption[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [query, setQuery] = useState("");
 
   const fetchModels = async () => {
     setLoading(true);
-    setError("");
     const discovered: ModelOption[] = [];
-
-    try {
-      for (const provider of Object.keys(providerLabels) as Provider[]) {
-        const apiKey = settings.apiKeys[provider]?.trim();
-        if (!apiKey) continue;
-
+    for (const provider of Object.keys(providerLabels) as Provider[]) {
+      const apiKey = settings.apiKeys[provider]?.trim();
+      if (!apiKey) continue;
+      try {
         const response = await fetch(`${settings.apiUrl || ""}/api/providers/models`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ provider, apiKey }),
         });
         const payload = await response.json().catch(() => ({}));
-        if (response.ok) {
-          discovered.push(...(payload.models ?? []).map((model: string) => ({ provider, model })));
-        }
-      }
-
-      setModels(discovered);
-      if (!discovered.some((item) => item.provider === settings.provider && item.model === settings.model)) {
-        const currentProviderModels = discovered.filter((item) => item.provider === settings.provider);
-        if (currentProviderModels[0]) onChange({ model: currentProviderModels[0].model });
-        else if (discovered[0]) onChange({ provider: discovered[0].provider, model: discovered[0].model });
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not fetch models.");
-    } finally {
-      setLoading(false);
+        if (response.ok) discovered.push(...(payload.models ?? []).map((model: string) => ({ provider, model })));
+      } catch { /* Keep other providers available. */ }
     }
+    setModels(discovered);
+    setLoading(false);
   };
 
-  useEffect(() => {
-    void fetchModels();
-  }, []);
+  useEffect(() => { void fetchModels(); }, []);
+  useEffect(() => { if (open && !models.length) void fetchModels(); }, [open]);
 
-  const grouped = (Object.keys(providerLabels) as Provider[])
-    .map((provider) => ({
-      provider,
-      models: models.filter((item) => item.provider === provider),
-    }))
-    .filter((group) => group.models.length);
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return models.filter((item) => !q || item.model.toLowerCase().includes(q) || providerLabels[item.provider].toLowerCase().includes(q));
+  }, [models, query]);
 
   return (
     <header className="topbar">
       <div className="topbar-left">
-        {!sidebarOpen && (
-          <button className="icon-button" onClick={onOpenSidebar} aria-label="Open sidebar">
-            <Menu size={19} />
-          </button>
-        )}
+        {!sidebarOpen && <button className="icon-button" onClick={onOpenSidebar} aria-label="Open sidebar"><Menu size={19} /></button>}
         <div className="model-picker">
-          <button className="model-button" aria-label="Selected AI model" onClick={() => setOpen((value) => !value)}>
-            <span>{providerLabels[settings.provider]} · {settings.model || "Select model"}</span>
-            <ChevronDown size={16} />
-          </button>
+          <motion.button
+            className="model-button"
+            whileTap={{ scale: 0.97 }}
+            onClick={() => setOpen((value) => !value)}
+            aria-expanded={open}
+          >
+            <span className="model-button-icon">{providerIcons[settings.provider]}</span>
+            <span className="model-button-copy">
+              <small>{providerLabels[settings.provider]}</small>
+              <strong>{settings.model || "Select model"}</strong>
+            </span>
+            <ChevronDown size={15} className={open ? "model-chevron model-chevron--open" : "model-chevron"} />
+          </motion.button>
 
-          {open && (
-            <div className="model-menu">
-              <div className="model-menu-header">
-                <span>Available models</span>
-                <button onClick={fetchModels} disabled={loading} aria-label="Refresh models">
-                  <RefreshCw size={14} className={loading ? "spin" : ""} />
-                </button>
-              </div>
-              {error && <div className="model-menu-error">{error}</div>}
-              {!loading && !grouped.length && (
-                <div className="model-menu-empty">Add provider API keys in Settings to load models.</div>
-              )}
-              {grouped.map((group) => (
-                <div className="model-provider-group" key={group.provider}>
-                  <div className="model-provider-label">{providerLabels[group.provider]}</div>
-                  {group.models.map((item) => (
-                    <button
-                      key={item.provider + ":" + item.model}
-                      className={item.provider === settings.provider && item.model === settings.model ? "model-option active" : "model-option"}
-                      onClick={() => {
-                        onChange({ provider: item.provider, model: item.model });
-                        setOpen(false);
-                      }}
-                    >
-                      <span>{item.model}</span>
-                      {item.provider === settings.provider && item.model === settings.model && <span>✓</span>}
-                    </button>
-                  ))}
-                </div>
-              ))}
-            </div>
-          )}
+          <AnimatePresence>
+            {open && (
+              <>
+                <motion.div className="model-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setOpen(false)} />
+                <motion.div
+                  className="model-menu"
+                  initial={{ opacity: 0, y: -8, scale: .97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -6, scale: .98 }}
+                  transition={{ duration: .16 }}
+                >
+                  <div className="model-menu-top">
+                    <div>
+                      <strong>Choose a model</strong>
+                      <span>{models.length ? `${models.length} available` : "Connected providers only"}</span>
+                    </div>
+                    <motion.button whileTap={{ scale: .9 }} onClick={() => void fetchModels()} disabled={loading} aria-label="Refresh models">
+                      {loading ? <LoaderCircle size={16} className="spin" /> : <RefreshCw size={16} />}
+                    </motion.button>
+                  </div>
+                  <div className="model-search">
+                    <Search size={15} />
+                    <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search models or providers…" autoFocus />
+                  </div>
+                  <div className="model-list">
+                    {loading && !models.length ? (
+                      <div className="model-loading"><LoaderCircle size={18} className="spin" /> Fetching available models…</div>
+                    ) : filtered.length ? (
+                      (Object.keys(providerLabels) as Provider[]).map((provider) => {
+                        const group = filtered.filter((item) => item.provider === provider);
+                        if (!group.length) return null;
+                        return (
+                          <div className="model-group" key={provider}>
+                            <div className="model-group-title"><span className={`provider-pill provider-pill--${provider}`}>{providerIcons[provider]}</span><span>{providerLabels[provider]}</span><em>{group.length}</em></div>
+                            {group.map((item) => {
+                              const active = item.provider === settings.provider && item.model === settings.model;
+                              return (
+                                <motion.button key={item.provider + item.model} className={active ? "model-option model-option--active" : "model-option"} whileTap={{ scale: .985 }} onClick={() => { onChange({ provider: item.provider, model: item.model }); setOpen(false); }}>
+                                  <span><strong>{item.model}</strong><small>{providerLabels[item.provider]}</small></span>
+                                  {active && <Check size={15} />}
+                                </motion.button>
+                              );
+                            })}
+                          </div>
+                        );
+                      })
+                    ) : <div className="model-empty"><Sparkles size={18} /><span>No models found. Add provider API keys in Settings.</span></div>}
+                  </div>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
         </div>
       </div>
-
-      <div className="status">
-        <span className="status-dot" />
-        Backend ready
-      </div>
+      <div className="status"><span className="status-dot" /> Backend ready</div>
     </header>
   );
 }
