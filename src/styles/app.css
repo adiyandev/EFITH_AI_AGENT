@@ -1099,3 +1099,12 @@
   transition: transform .15s ease, opacity .15s ease;
 }
 .chat-auth-button:hover { transform: translateY(-1px); opacity: .9; }
+
+.sidebar-chats { overflow: auto; flex: 1; min-height: 0; }
+.sidebar-section .section-label { display:flex; align-items:center; justify-content:space-between; }
+.sidebar-section .empty-state { display:flex; align-items:center; gap:8px; line-height:1.45; }
+.chat-item { position:relative; transition:background .16s,transform .16s; }
+.chat-item > span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.chat-delete { margin-left:auto; flex:0 0 auto; opacity:0; color:var(--muted-2); transition:opacity .16s,color .16s; }
+.chat-item:hover .chat-delete { opacity:1; }
+.chat-delete:hover { color:var(--text); }
