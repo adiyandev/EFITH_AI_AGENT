@@ -224,6 +224,7 @@ async function callOpenAICompatible(
           ...(tools.length ? {
             tools: tools.map(({ mcpServerId: _s, mcpToolName: _t, ...tool }) => tool),
             tool_choice: "auto",
+            ...(provider === "groq" ? { parallel_tool_calls: true } : {}),
           } : {}),
         }),
       });
@@ -732,7 +733,12 @@ app.post<{ Body: ChatRequest }>("/api/chat", async (request, reply) => {
               durationMs: Math.round(performance.now() - startedAt),
               status: "done",
             });
-            workingMessages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(toolResult) });
+            workingMessages.push({
+            role: "tool",
+            tool_call_id: call.id,
+            name: tool.function.name,
+            content: JSON.stringify(toolResult),
+          });
           } catch (error) {
             toolActivities.push({
               id: call.id,
