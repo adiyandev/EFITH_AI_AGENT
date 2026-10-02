@@ -242,6 +242,15 @@ export function SettingsPage({ settings, onSave, onBack }: Props) {
 
             {tab==="general" ? (
               <div className="settings-page-grid">
+                <section className="settings-panel settings-panel-wide settings-overview">
+                  <div className="settings-panel-heading"><div className="settings-panel-icon"><Sparkles size={17}/></div><div><h2>EFITH workspace</h2><p>A quick look at the services and model currently powering your assistant.</p></div></div>
+                  <div className="settings-overview-grid">
+                    <div className="settings-overview-card"><span>Active provider</span><strong>{labels[draft.provider]}</strong><small>{draft.model}</small></div>
+                    <div className="settings-overview-card"><span>Web search</span><strong>{tavilyConfigured ? "Connected" : "Not configured"}</strong><small>{tavilyConfigured ? "Tavily is ready" : "Optional integration"}</small></div>
+                    <div className="settings-overview-card"><span>Connections</span><strong>{servers.filter(server=>server.connected).length} connected</strong><small>{servers.length} configured</small></div>
+                    <div className="settings-overview-card"><span>Backend</span><strong>{api ? "Custom" : "Local"}</strong><small>{api || "localhost:8787"}</small></div>
+                  </div>
+                </section>
                 <section className="settings-panel settings-panel-wide">
                   <div className="settings-panel-heading"><div className="settings-panel-icon"><Sparkles size={17}/></div><div><h2>AI provider</h2><p>Choose the provider and model EFITH should use.</p></div></div>
                   <div className="settings-form-grid">
@@ -270,7 +279,18 @@ export function SettingsPage({ settings, onSave, onBack }: Props) {
               </div>
             ) : (
               <div className="settings-page-grid">
-                <section className="settings-panel settings-panel-wide">\n                  <div className="settings-panel-heading"><div className="settings-panel-icon"><Sparkles size={17}/></div><div><h2>Google</h2><p>Connect Gmail and Google Calendar to EFITH.</p></div><span className="connection-badge">{googleConnected?"Connected":googleConfigured?"Configured":"Setup needed"}</span></div>\n                  <div className="settings-form-grid">\n                    <label><span>Google Client ID</span><input value={googleId} onChange={e=>setGoogleId(e.target.value)} placeholder="OAuth Client ID" autoComplete="off"/></label>\n                    <label><span>Google Client Secret</span><input type="password" value={googleSecret} onChange={e=>setGoogleSecret(e.target.value)} placeholder={googleConfigured?"Already saved — enter to replace":"OAuth Client Secret"} autoComplete="new-password"/></label>\n                    <label className="full"><span>OAuth callback URL</span><div className="readonly-field">{(draft.apiUrl || "http://127.0.0.1:8787").replace(/\/$/,"")}/api/google/oauth/callback</div></label>\n                  </div>\n                  <div className="settings-row-actions"><button className="settings-primary" onClick={saveGoogle} disabled={savingGoogle||!googleId.trim()||!googleSecret.trim()}>{savingGoogle?<LoaderCircle size={15} className="spin"/>:<KeyRound size={15}/>} {savingGoogle?"Saving…":googleConfigured?"Replace credentials":"Save credentials"}</button>{googleConfigured&&<button className="settings-secondary" onClick={connectGoogle}>{googleConnected?"Reconnect Google":"Connect Google"} <ArrowLeft size={14} style={{transform:"rotate(180deg)"}}/></button>}</div>\n                  <div className="settings-security warning"><ShieldCheck size={14}/><span>Google OAuth credentials stay on the backend. Gmail and Calendar access is granted during sign-in.</span></div>\n                </section>\n\n                <section className="settings-panel settings-panel-wide">
+                <section className="settings-panel settings-panel-wide">
+                  <div className="settings-panel-heading"><div className="settings-panel-icon"><Sparkles size={17}/></div><div><h2>Google</h2><p>Connect Gmail and Google Calendar to EFITH.</p></div><span className="connection-badge">{googleConnected?"Connected":googleConfigured?"Configured":"Setup needed"}</span></div>
+                  <div className="settings-form-grid">
+                    <label><span>Google Client ID</span><input value={googleId} onChange={e=>setGoogleId(e.target.value)} placeholder="OAuth Client ID" autoComplete="off"/></label>
+                    <label><span>Google Client Secret</span><input type="password" value={googleSecret} onChange={e=>setGoogleSecret(e.target.value)} placeholder={googleConfigured?"Already saved — enter to replace":"OAuth Client Secret"} autoComplete="new-password"/></label>
+                    <label className="full"><span>OAuth callback URL</span><div className="readonly-field">{(draft.apiUrl || "http://127.0.0.1:8787").replace(/\/$/,"")}/api/google/oauth/callback</div></label>
+                  </div>
+                  <div className="settings-row-actions"><button className="settings-primary" onClick={saveGoogle} disabled={savingGoogle||!googleId.trim()||!googleSecret.trim()}>{savingGoogle?<LoaderCircle size={15} className="spin"/>:<KeyRound size={15}/>} {savingGoogle?"Saving…":googleConfigured?"Replace credentials":"Save credentials"}</button>{googleConfigured&&<button className="settings-secondary" onClick={connectGoogle}>{googleConnected?"Reconnect Google":"Connect Google"} <ArrowLeft size={14} style={{transform:"rotate(180deg)"}}/></button>}</div>
+                  <div className="settings-security warning"><ShieldCheck size={14}/><span>Google OAuth credentials stay on the backend. Gmail and Calendar access is granted during sign-in.</span></div>
+                </section>
+
+                <section className="settings-panel settings-panel-wide">
                   <div className="settings-panel-heading"><div className="settings-panel-icon"><Github size={17}/></div><div><h2>GitHub</h2><p>Connect EFITH to the official GitHub MCP server.</p></div><span className={githubConfigured ? "connection-badge connected" : "connection-badge"}>{githubConfigured ? "Configured" : "Setup needed"}</span></div>
                   <div className="settings-form-grid">
                     <label><span>GitHub Client ID</span><input value={githubId} onChange={e=>setGithubId(e.target.value)} placeholder="OAuth App Client ID" autoComplete="off"/></label>
