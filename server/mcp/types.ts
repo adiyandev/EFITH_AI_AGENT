@@ -8,6 +8,9 @@ export type McpServerConfig = {
   command?: string;
   args?: string[];
   env?: Record<string, string>;
+  authUrl?: string;
+  providerName?: string;
+  requiresAuth?: boolean;
 };
 
 export type McpTool = {
