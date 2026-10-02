@@ -30,6 +30,7 @@ export default function App() {
 function EfithApp() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(window.location.pathname.endsWith("/settings"));
+  const [settingsHydrated, setSettingsHydrated] = useState(false);
   useEffect(() => {
     const onPop = () => setSettingsOpen(window.location.pathname.endsWith("/settings"));
     window.addEventListener("popstate", onPop);
@@ -52,8 +53,37 @@ function EfithApp() {
   });
 
   useEffect(() => {
+    if (!window.electronAPI) {
+      setSettingsHydrated(true);
+      return;
+    }
+
+    let legacy: EfithSettings | null = null;
+    try {
+      const saved = localStorage.getItem(SETTINGS_KEY);
+      legacy = saved ? JSON.parse(saved) as EfithSettings : null;
+    } catch {}
+
+    window.electronAPI.getSettings().then((stored) => {
+      setSettings((current) => ({
+        ...current,
+        ...stored,
+        apiKeys: {
+          ...current.apiKeys,
+          ...(stored.apiKeys ?? {}),
+          ...(legacy?.apiKeys ?? {}),
+        },
+        tavilyApiKey: stored.tavilyApiKey || legacy?.tavilyApiKey || "",
+      }));
+      setSettingsHydrated(true);
+    }).catch(() => setSettingsHydrated(true));
+  }, []);
+
+  useEffect(() => {
+    if (!settingsHydrated) return;
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-  }, [settings]);
+    void window.electronAPI?.saveSettings(settings);
+  }, [settings, settingsHydrated]);
 
   if (settingsOpen) {
     return (
