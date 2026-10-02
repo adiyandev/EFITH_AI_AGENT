@@ -693,6 +693,7 @@ app.post<{ Body: ChatRequest }>("/api/chat", async (request, reply) => {
             workingMessages.push({ tool_call_id: call.id, role: "tool", content: JSON.stringify({ error: error instanceof Error ? error.message : "MCP tool failed." }) });
           }
       }
+    }
     return reply.code(502).send({ error: "EFITH reached the tool-call limit for this request." });
   } catch (error) {
     request.log.error(error, "Provider request failed");
