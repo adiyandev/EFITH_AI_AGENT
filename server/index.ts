@@ -422,7 +422,7 @@ app.get<{ Params: { id: string } }>("/api/mcp/oauth/callback/:id", async (reques
 
     await mcp.finishOAuth(config, params);
 
-    const webUrl = (process.env.EFITH_WEB_URL ?? "http://localhost:5173/EFITH_AI_AGENT").replace(//$/, "");
+    const webUrl = (process.env.EFITH_WEB_URL ?? "http://localhost:5173/EFITH_AI_AGENT").replace(/\/$/, "");
     return reply.redirect(302, webUrl + "/mcp/auth/" + encodeURIComponent(config.id) + "?status=connected");
   } catch (error) {
     request.log.error(error, "MCP OAuth callback failed");
