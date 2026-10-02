@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, LoaderCircle, Plus, Settings2, ShieldCheck, X } from "lucide-react";
+import { Check, CircleHelp, LoaderCircle, Plus, ShieldCheck, SlidersHorizontal, Sparkles, X } from "lucide-react";
 
 export type Provider = "openai" | "gemini" | "anthropic" | "groq";
 export type EfithSettings = {
@@ -50,12 +50,14 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
   const [mcpLoading, setMcpLoading] = useState(false);
   const [mcpAdding, setMcpAdding] = useState(false);
   const [mcpForm, setMcpForm] = useState({ id: "", name: "", url: "", authUrl: "", providerName: "", requiresAuth: true });
+  const [activeTab, setActiveTab] = useState<"general" | "mcp">("general");
 
   useEffect(() => {
     if (open) {
       setDraft(settings);
       setTestResult(null);
       setTestMessage("");
+      setActiveTab("general");
       void loadMcpServers();
     }
   }, [open, settings]);
@@ -165,81 +167,77 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
           </button>
         </div>
 
-        <div className="settings-section">
-          <label>
-            <span>AI provider</span>
-            <select value={draft.provider} onChange={(e) => changeProvider(e.target.value as Provider)}>
-              <option value="openai">OpenAI</option>
-              <option value="gemini">Google Gemini</option>
-              <option value="anthropic">Anthropic Claude</option>
-              <option value="groq">Groq</option>
-            </select>
-          </label>
-
-          <label>
-            <span>Model</span>
-            <select
-              value={draft.model}
-              onChange={(e) => {
-                setDraft({ ...draft, model: e.target.value });
-                setTestResult(null);
-              }}
-            >
-              {models[draft.provider].map((model) => (
-                <option key={model} value={model}>{model}</option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            <span>{labels[draft.provider]} API key</span>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => {
-                setDraft({
-                  ...draft,
-                  apiKeys: { ...draft.apiKeys, [draft.provider]: e.target.value },
-                });
-                setTestResult(null);
-              }}
-              placeholder="Paste your API key"
-              autoComplete="off"
-              spellCheck={false}
-            />
-          </label>
-
-          <button className="test-connection" onClick={testConnection} disabled={testing}>
-            {testing ? <LoaderCircle className="spin" size={15} /> : <Check size={15} />}
-            {testing ? "Testing..." : "Test connection"}
+        <div className="settings-tabs" role="tablist">
+          <button className={activeTab === "general" ? "settings-tab settings-tab--active" : "settings-tab"} onClick={() => setActiveTab("general")} role="tab">
+            <SlidersHorizontal size={15} /> General
           </button>
-
-          {testMessage && (
-            <p className={`settings-test settings-test--${testResult}`}>{testMessage}</p>
-          )}
-
-          <label>
-            <span>Backend URL</span>
-            <input
-              value={draft.apiUrl}
-              onChange={(e) => setDraft({ ...draft, apiUrl: e.target.value })}
-              placeholder="http://localhost:8787"
-            />
-          </label>
-
-          <p className="settings-help">
-            Local mode: your key is saved in this browser and sent only to your local EFITH backend.
-            It is not uploaded to GitHub or stored by the EFITH server.
-          </p>
+          <button className={activeTab === "mcp" ? "settings-tab settings-tab--active" : "settings-tab"} onClick={() => setActiveTab("mcp")} role="tab">
+            <ShieldCheck size={15} /> MCP
+            {mcpServers.some((server) => !server.connected && server.requiresAuth) && <span className="settings-tab-dot" />}
+          </button>
         </div>
 
+        {activeTab === "general" ? (
+          <div className="settings-section">
+            <div className="settings-card-heading">
+              <div className="settings-card-icon"><Sparkles size={16} /></div>
+              <div>
+                <strong>AI provider</strong>
+                <span>Choose the model EFITH uses for conversations.</span>
+              </div>
+            </div>
+
+            <label>
+              <span>Provider</span>
+              <select value={draft.provider} onChange={(e) => changeProvider(e.target.value as Provider)}>
+                <option value="openai">OpenAI</option>
+                <option value="gemini">Google Gemini</option>
+                <option value="anthropic">Anthropic Claude</option>
+                <option value="groq">Groq</option>
+              </select>
+            </label>
+
+            <label>
+              <span>Model</span>
+              <select value={draft.model} onChange={(e) => { setDraft({ ...draft, model: e.target.value }); setTestResult(null); }}>
+                {models[draft.provider].map((model) => <option key={model} value={model}>{model}</option>)}
+              </select>
+            </label>
+
+            <label>
+              <span>{labels[draft.provider]} API key</span>
+              <input type="password" value={apiKey} onChange={(e) => {
+                setDraft({ ...draft, apiKeys: { ...draft.apiKeys, [draft.provider]: e.target.value } });
+                setTestResult(null);
+              }} placeholder="Paste your API key" autoComplete="off" spellCheck={false} />
+            </label>
+
+            <div className="settings-action-row">
+              <button className="test-connection" onClick={testConnection} disabled={testing}>
+                {testing ? <LoaderCircle className="spin" size={15} /> : <Check size={15} />}
+                {testing ? "Testing..." : "Test connection"}
+              </button>
+              {testMessage && <span className={testResult === "success" ? "settings-inline-success" : "settings-inline-error"}>{testMessage}</span>}
+            </div>
+
+            <label>
+              <span>Backend URL</span>
+              <input value={draft.apiUrl} onChange={(e) => setDraft({ ...draft, apiUrl: e.target.value })} placeholder="http://localhost:8787" />
+            </label>
+
+            <div className="settings-info">
+              <CircleHelp size={14} />
+              <p>Your API key stays in this browser and is sent only to your configured EFITH backend.</p>
+            </div>
+          </div>
+        ) : (
         <div className="settings-section settings-mcp-section">
-          <div className="settings-section-title">
+          <div className="settings-card-heading"><div className="settings-card-icon"><ShieldCheck size={16} /></div><div><strong>MCP connections</strong><span>Give EFITH access to external tools and services.</span></div></div><div className="settings-section-title">
             <div>
               <span>MCP</span>
               <h3>Connected apps & tools</h3>
             </div>
-            <Settings2 size={17} />
+            <span className="settings-mcp-count">{mcpServers.length} configured</span>
           </div>
           <p className="settings-help">
             Connect MCP servers so EFITH can use their tools. OAuth-protected servers can send you to their sign-in page when authentication is required.
@@ -273,12 +271,12 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
           </div>
 
           <div className="mcp-add-form">
-            <div className="settings-section-title">
+            <div className="settings-add-heading">
               <div>
-                <span>Add MCP</span>
-                <h3>Configure a server</h3>
+                <strong>Add an MCP server</strong>
+                <span>Connect a remote Streamable HTTP MCP server.</span>
               </div>
-              <Plus size={17} />
+              <Plus size={16} />
             </div>
             <div className="mcp-form-grid">
               <input value={mcpForm.id} onChange={(e) => setMcpForm({ ...mcpForm, id: e.target.value })} placeholder="Server ID (e.g. github)" />
@@ -298,6 +296,7 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
           </div>
         </div>
 
+        )
         <div className="settings-footer">
           <button className="settings-cancel" onClick={onClose}>Cancel</button>
           <button
