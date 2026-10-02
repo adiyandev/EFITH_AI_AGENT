@@ -1,6 +1,7 @@
 import { google } from "googleapis";
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 type Config={clientId:string;clientSecret:string;redirectUri:string}; let runtime:Config|null=null; let tokens:any=null; let oauthState="";
+const GOOGLE_OAUTH_REDIRECT_URI = "http://localhost:8787/api/google/oauth/callback";
 
 const COOKIE_NAME = "efith_google_session";
 function encryptionKey() {
@@ -21,8 +22,8 @@ export function decryptGoogleTokens(value:string) {
 export function getGoogleCookieName(){return COOKIE_NAME;}
 
 const scopes=["openid","email","profile","https://www.googleapis.com/auth/gmail.readonly","https://www.googleapis.com/auth/gmail.send","https://www.googleapis.com/auth/gmail.modify","https://www.googleapis.com/auth/calendar"];
-export function configureGoogleOAuth(clientId:string,clientSecret:string,redirectUri:string){runtime={clientId:clientId.trim(),clientSecret:clientSecret.trim(),redirectUri};tokens=null;}
-export function getGoogleOAuthConfig(){const clientId=runtime?.clientId||process.env.GOOGLE_CLIENT_ID?.trim();const clientSecret=runtime?.clientSecret||process.env.GOOGLE_CLIENT_SECRET?.trim();const redirectUri=runtime?.redirectUri||process.env.GOOGLE_OAUTH_REDIRECT_URI?.trim();return clientId&&clientSecret&&redirectUri?{clientId,clientSecret,redirectUri}:null;}
+export function configureGoogleOAuth(clientId:string,clientSecret:string){runtime={clientId:clientId.trim(),clientSecret:clientSecret.trim(),redirectUri:GOOGLE_OAUTH_REDIRECT_URI};tokens=null;}
+export function getGoogleOAuthConfig(){const clientId=runtime?.clientId||process.env.GOOGLE_CLIENT_ID?.trim();const clientSecret=runtime?.clientSecret||process.env.GOOGLE_CLIENT_SECRET?.trim();const redirectUri=GOOGLE_OAUTH_REDIRECT_URI;return clientId&&clientSecret?{clientId,clientSecret,redirectUri}:null;}
 function client(){const c=getGoogleOAuthConfig();if(!c)throw new Error("Google OAuth is not configured.");return new google.auth.OAuth2(c.clientId,c.clientSecret,c.redirectUri);}
 export function getGoogleOAuthUrl(){const c=client();oauthState=crypto.randomUUID();return c.generateAuthUrl({access_type:"offline",prompt:"consent",scope:scopes,state:oauthState});}
 export async function finishGoogleOAuth(code:string,state:string){if(!state||state!==oauthState)throw new Error("Google OAuth state validation failed.");const c=client();tokens=(await c.getToken(code)).tokens;return tokens;}
