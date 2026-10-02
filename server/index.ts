@@ -636,7 +636,7 @@ app.post<{ Body: ChatRequest }>("/api/chat", async (request, reply) => {
     const latestUserText = [...messages].reverse().find((item) => item.role === "user")?.content ?? "";
     const githubServer = configuredMcpServers.find((server) => server.id === "github");
     const githubConnected = mcp.listConnections().some((connection) => connection.id === "github");
-    if (githubServer && !githubConnected && /\\b(github|git hub|repository|repo|pull request|pull requests|issue|issues|commit|branch)\\b/i.test(latestUserText)) {
+    if (githubServer && !githubConnected && /\b(github|git hub|repository|repo|pull request|pull requests|issue|issues|commit|branch)\b/i.test(latestUserText)) {
       return reply.code(401).send({
         error: "GitHub needs to be connected before EFITH can access it.",
         requiresAuth: true,
