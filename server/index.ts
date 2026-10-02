@@ -460,7 +460,7 @@ app.get<{ Params: { id: string } }>("/api/mcp/oauth/callback/:id", async (reques
     // OAuth is complete; send the user straight back to EFITH's dashboard base.
     // The dedicated MCP auth page is not needed after the provider has approved access.
     const webUrl = (process.env.EFITH_WEB_URL ?? "http://localhost:5173/EFITH_AI_AGENT").replace(/\/$/, "");
-    return reply.redirect(302, webUrl + "/");
+    return reply.redirect(webUrl + "/", 302);
   } catch (error) {
     request.log.error(error, "MCP OAuth callback failed");
     return reply.code(400).type("text/html").send("<h1>GitHub authorization failed</h1><p>EFITH could not complete the MCP authorization. Check the backend logs for details.</p>");
