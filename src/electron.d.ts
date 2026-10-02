@@ -10,7 +10,8 @@ declare global {
         downloadInstaller: () => Promise<{ path: string; url: string }>;
         launchInstaller: () => Promise<{ launched: boolean; path: string }>;
         getModelsPath: () => Promise<{ path: string | null }>;
-        chooseModelsDirectory: () => Promise<{ canceled: boolean; path: string | null; restartRequired: boolean }>;
+        chooseModelsDirectory: () => Promise<{ canceled: boolean; path: string | null; restartRequired: boolean; restarted?: boolean; running?: boolean }>;
+        restart: (modelsPath?: string) => Promise<{ restarted: boolean; running: boolean; reason?: string }>;
       };
     };
   }
