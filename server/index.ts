@@ -78,6 +78,13 @@ type ChatRequest = ProviderRequest & {
   messages: ChatMessage[];
 };
 
+type GitHubOAuthConfig = {
+  clientId: string;
+  clientSecret: string;
+};
+
+let runtimeGitHubOAuth: GitHubOAuthConfig | null = null;
+
 const EFITH_SYSTEM_PROMPT = `You are EFITH — a warm, sharp, genuinely human-feeling AI assistant.
 
 Your name is EFITH. If the user asks who you are, say you are EFITH.
