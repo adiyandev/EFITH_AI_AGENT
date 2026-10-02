@@ -1,15 +1,35 @@
 import { google } from "googleapis";
+import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 type Config={clientId:string;clientSecret:string;redirectUri:string}; let runtime:Config|null=null; let tokens:any=null; let oauthState="";
+
+const COOKIE_NAME = "efith_google_session";
+function encryptionKey() {
+  const raw = process.env.GOOGLE_TOKEN_ENCRYPTION_KEY?.trim() ?? "";
+  if (!raw) throw new Error("GOOGLE_TOKEN_ENCRYPTION_KEY is not configured.");
+  const key = Buffer.from(raw, "hex");
+  if (key.length !== 32) throw new Error("GOOGLE_TOKEN_ENCRYPTION_KEY must be 64 hex characters.");
+  return key;
+}
+export function encryptGoogleTokens(value:any) {
+  const iv=randomBytes(12); const cipher=createCipheriv("aes-256-gcm",encryptionKey(),iv);
+  const encrypted=Buffer.concat([cipher.update(JSON.stringify(value),"utf8"),cipher.final()]);
+  return Buffer.concat([iv,cipher.getAuthTag(),encrypted]).toString("base64url");
+}
+export function decryptGoogleTokens(value:string) {
+  try { const b=Buffer.from(value,"base64url"); const decipher=createDecipheriv("aes-256-gcm",encryptionKey(),b.subarray(0,12)); decipher.setAuthTag(b.subarray(12,28)); return JSON.parse(Buffer.concat([decipher.update(b.subarray(28)),decipher.final()]).toString("utf8")); } catch { return null; }
+}
+export function getGoogleCookieName(){return COOKIE_NAME;}
+
 const scopes=["openid","email","profile","https://www.googleapis.com/auth/gmail.readonly","https://www.googleapis.com/auth/gmail.send","https://www.googleapis.com/auth/gmail.modify","https://www.googleapis.com/auth/calendar"];
 export function configureGoogleOAuth(clientId:string,clientSecret:string,redirectUri:string){runtime={clientId:clientId.trim(),clientSecret:clientSecret.trim(),redirectUri};tokens=null;}
 export function getGoogleOAuthConfig(){const clientId=runtime?.clientId||process.env.GOOGLE_CLIENT_ID?.trim();const clientSecret=runtime?.clientSecret||process.env.GOOGLE_CLIENT_SECRET?.trim();const redirectUri=runtime?.redirectUri||process.env.GOOGLE_OAUTH_REDIRECT_URI?.trim()||"http://127.0.0.1:8787/api/google/oauth/callback";return clientId&&clientSecret?{clientId,clientSecret,redirectUri}:null;}
 function client(){const c=getGoogleOAuthConfig();if(!c)throw new Error("Google OAuth is not configured.");return new google.auth.OAuth2(c.clientId,c.clientSecret,c.redirectUri);}
 export function getGoogleOAuthUrl(){const c=client();oauthState=crypto.randomUUID();return c.generateAuthUrl({access_type:"offline",prompt:"consent",scope:scopes,state:oauthState});}
-export async function finishGoogleOAuth(code:string,state:string){if(!state||state!==oauthState)throw new Error("Google OAuth state validation failed.");const c=client();tokens=(await c.getToken(code)).tokens;}
+export async function finishGoogleOAuth(code:string,state:string){if(!state||state!==oauthState)throw new Error("Google OAuth state validation failed.");const c=client();tokens=(await c.getToken(code)).tokens;return tokens;}
 export function isGoogleConnected(){return Boolean(tokens?.access_token||tokens?.refresh_token);}
-async function auth(){if(!isGoogleConnected())throw new Error("Google is not connected. Connect Google in EFITH Settings.");const c=client();c.setCredentials(tokens);if(tokens.expiry_date&&tokens.expiry_date<Date.now()+60000){const r=await c.getAccessToken();if(r.token)tokens={...tokens,access_token:r.token};}c.on("tokens",t=>tokens={...tokens,...t});return c;}
+async function auth(cookieValue?:string){if(cookieValue){const restored=decryptGoogleTokens(cookieValue);if(restored)tokens=restored;}if(!isGoogleConnected())throw new Error("Google is not connected. Connect Google in EFITH Settings.");const c=client();c.setCredentials(tokens);if(tokens.expiry_date&&tokens.expiry_date<Date.now()+60000){const r=await c.getAccessToken();if(r.token)tokens={...tokens,access_token:r.token};}c.on("tokens",t=>tokens={...tokens,...t});return c;}
 function confirm(a:Record<string,unknown>){if(a.confirm!==true)throw new Error("Confirmation required. Ask the user to confirm this exact action, then call again with confirm=true.");}
-export async function runGoogleTool(name:string,a:Record<string,unknown>){const c=await auth();
+export async function runGoogleTool(name:string,a:Record<string,unknown>,cookieValue?:string){const c=await auth(cookieValue);
 if(name==="gmail_search"){const g=google.gmail({version:"v1",auth:c});const r=await g.users.messages.list({userId:"me",q:String(a.query||""),maxResults:Math.min(Number(a.maxResults||10),50)});const out=[];for(const m of r.data.messages||[]){const d=await g.users.messages.get({userId:"me",id:m.id!,format:"metadata",metadataHeaders:["From","To","Subject","Date"]});const h=Object.fromEntries((d.data.payload?.headers||[]).map(x=>[x.name||"",x.value||""]));out.push({id:m.id,threadId:m.threadId,snippet:d.data.snippet,...h});}return {messages:out};}
 if(name==="gmail_get"){const g=google.gmail({version:"v1",auth:c});const r=await g.users.messages.get({userId:"me",id:String(a.messageId),format:"full"});return {id:r.data.id,threadId:r.data.threadId,snippet:r.data.snippet,headers:r.data.payload?.headers,body:r.data.payload};}
 if(name==="gmail_send"){confirm(a);const g=google.gmail({version:"v1",auth:c});const raw=Buffer.from("To: "+a.to+"\r\nSubject: "+a.subject+"\r\nContent-Type: text/plain; charset=\"UTF-8\"\r\n\r\n"+a.body).toString("base64url");const r=await g.users.messages.send({userId:"me",requestBody:{raw}});return {sent:true,id:r.data.id,threadId:r.data.threadId};}
