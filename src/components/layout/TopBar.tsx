@@ -3,9 +3,10 @@ import { ChevronDown, Menu } from "lucide-react";
 type TopBarProps = {
   sidebarOpen: boolean;
   onOpenSidebar: () => void;
+  model: string;
 };
 
-export function TopBar({ sidebarOpen, onOpenSidebar }: TopBarProps) {
+export function TopBar({ sidebarOpen, onOpenSidebar, model }: TopBarProps) {
   return (
     <header className="topbar">
       <div className="topbar-left">
@@ -14,15 +15,15 @@ export function TopBar({ sidebarOpen, onOpenSidebar }: TopBarProps) {
             <Menu size={19} />
           </button>
         )}
-        <button className="model-button" aria-label="Select AI model">
-          <span>EFITH</span>
+        <button className="model-button" aria-label="Selected AI model">
+          <span>{model || "EFITH"}</span>
           <ChevronDown size={16} />
         </button>
       </div>
 
       <div className="status">
         <span className="status-dot" />
-        Online
+        Backend ready
       </div>
     </header>
   );
