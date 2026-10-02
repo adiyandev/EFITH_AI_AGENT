@@ -90,7 +90,7 @@ type AgentTool = {
   mcpToolName: string;
 };
 
-type ProviderName = "openai" | "gemini" | "anthropic" | "groq";
+type ProviderName = "openai" | "gemini" | "anthropic" | "groq" | "ollama";
 
 type ProviderRequest = {
   provider?: ProviderName;
@@ -231,6 +231,10 @@ const PROVIDERS: Record<ProviderName, { baseUrl: string; defaultModel: string }>
     baseUrl: "https://api.groq.com/openai/v1",
     defaultModel: process.env.GROQ_MODEL ?? "openai/gpt-oss-120b",
   },
+  ollama: {
+    baseUrl: process.env.OLLAMA_BASE_URL ?? "http://127.0.0.1:11434/v1",
+    defaultModel: process.env.OLLAMA_MODEL ?? "llama3.2:3b",
+  },
 };
 
 function getProviderConfig(provider: ProviderName, requestApiKey?: string) {
@@ -242,7 +246,9 @@ function getProviderConfig(provider: ProviderName, requestApiKey?: string) {
         ? process.env.GEMINI_API_KEY
         : provider === "anthropic"
           ? process.env.ANTHROPIC_API_KEY
-          : process.env.GROQ_API_KEY;
+          : provider === "groq"
+            ? process.env.GROQ_API_KEY
+            : "ollama";
 
   return {
     provider,
@@ -801,13 +807,15 @@ app.post<{ Body: ProviderRequest }>("/api/providers/models", async (request, rep
   const provider = request.body?.provider ?? "gemini";
   const config = getProviderConfig(provider, request.body?.apiKey);
 
-  if (!config.apiKey) {
+  if (provider !== "ollama" && !config.apiKey) {
     return reply.code(400).send({ error: `${provider} API key is required.` });
   }
 
   try {
     let response: Response;
-    if (provider === "gemini") {
+    if (provider === "ollama") {
+      response = await fetch(`${config.baseUrl.replace(/\\/v1\\/?$/, "")}/api/tags`);
+    } else if (provider === "gemini") {
       response = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000", {
         headers: { "x-goog-api-key": config.apiKey },
       });
@@ -823,7 +831,9 @@ app.post<{ Body: ProviderRequest }>("/api/providers/models", async (request, rep
     }
 
     let models: string[] = [];
-    if (provider === "gemini") {
+    if (provider === "ollama") {
+      models = (payload.models ?? []).map((item: any) => String(item.name ?? item.model ?? item.id ?? "")).filter(Boolean);
+    } else if (provider === "gemini") {
       models = (payload.models ?? [])
         .filter((item: any) => (item.supportedGenerationMethods ?? item.supported_actions ?? []).includes("generateContent"))
         .map((item: any) => item.baseModelId || String(item.name ?? "").replace(/^models\//, ""))
@@ -849,16 +859,80 @@ app.post<{ Body: ProviderRequest }>("/api/providers/models", async (request, rep
   }
 });
 
+app.post<{ Body: { model: string } }>("/api/ollama/pull", async (request, reply) => {
+  const model = request.body?.model?.trim();
+  if (!model) return reply.code(400).send({ error: "Ollama model name is required." });
+
+  try {
+    const baseUrl = PROVIDERS.ollama.baseUrl.replace(/\/v1\/?$/, "");
+    const response = await fetch(`${baseUrl}/api/pull`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: model, stream: true }),
+    });
+    if (!response.ok || !response.body) {
+      const payload: any = await response.json().catch(() => ({}));
+      return reply.code(response.status || 502).send({ error: getProviderError(payload, "Could not pull Ollama model.") });
+    }
+
+    reply.hijack();
+    reply.raw.statusCode = 200;
+    reply.raw.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
+    reply.raw.setHeader("Cache-Control", "no-cache");
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        reply.raw.write(decoder.decode(value, { stream: true }));
+      }
+      const tail = decoder.decode();
+      if (tail) reply.raw.write(tail);
+    } finally {
+      reader.releaseLock();
+      reply.raw.end();
+    }
+  } catch (error) {
+    if (!reply.raw.headersSent) return reply.code(502).send({ error: error instanceof Error ? error.message : "Could not pull Ollama model." });
+    reply.raw.end();
+  }
+});
+
+app.delete<{ Body: { model: string } }>("/api/ollama/models", async (request, reply) => {
+  const model = request.body?.model?.trim();
+  if (!model) return reply.code(400).send({ error: "Ollama model name is required." });
+
+  try {
+    const baseUrl = PROVIDERS.ollama.baseUrl.replace(/\/v1\/?$/, "");
+    const response = await fetch(`${baseUrl}/api/delete`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: model }),
+    });
+    const payload: any = await response.json().catch(() => ({}));
+    if (!response.ok) return reply.code(response.status || 502).send({ error: getProviderError(payload, "Could not delete Ollama model.") });
+    return { ok: true, model };
+  } catch (error) {
+    return reply.code(502).send({ error: error instanceof Error ? error.message : "Could not delete Ollama model." });
+  }
+});
+
 app.post<{ Body: ProviderRequest }>("/api/providers/test", async (request, reply) => {
   const provider = request.body?.provider ?? "gemini";
   const config = getProviderConfig(provider, request.body?.apiKey);
   const model = request.body?.model || config.model;
 
-  if (!config.apiKey) {
+  if (provider !== "ollama" && !config.apiKey) {
     return reply.code(400).send({ error: `${provider} API key is required.` });
   }
 
   try {
+    if (provider === "ollama") {
+      const response = await fetch(`${config.baseUrl.replace(/\\/v1\\/?$/, "")}/api/tags`);
+      if (!response.ok) throw new Error("Ollama is not running. Start Ollama and try again.");
+      return { ok: true, provider, model };
+    }
     await testProvider(provider, model, config.apiKey);
     return { ok: true, provider, model };
   } catch (error) {
@@ -881,7 +955,14 @@ app.post<{ Body: ChatRequest }>("/api/chat", async (request, reply) => {
   const agentMessages = Array.isArray(messages) ? withEfithSystemPrompt(messages) : messages;
   const model = request.body?.model || config.model;
 
-  if (!config.apiKey) {
+  if (provider === "ollama") {
+    try {
+      const response = await fetch(`${config.baseUrl.replace(/\\/v1\\/?$/, "")}/api/tags`);
+      if (!response.ok) throw new Error("Ollama is not running.");
+    } catch (error) {
+      return reply.code(503).send({ error: error instanceof Error ? error.message : "Ollama is not running." });
+    }
+  } else if (!config.apiKey) {
     return reply.code(503).send({
       error: `${provider} is not configured. Add its API key in EFITH Settings or the backend environment.`,
     });
