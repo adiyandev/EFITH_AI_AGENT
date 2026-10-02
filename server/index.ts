@@ -83,7 +83,8 @@ async function callOpenAICompatible(
   const payload = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    const detail = getProviderError(payload, `${provider} request failed.`);\n    throw new Error(`${provider} request failed (HTTP ${response.status}): ${detail}`);
+    const detail = getProviderError(payload, `${provider} request failed.`);
+    throw new Error(`${provider} request failed (HTTP ${response.status}): ${detail}`);
   }
 
   return payload?.choices?.[0]?.message?.content;
@@ -93,7 +94,9 @@ async function callAnthropic(messages: ChatMessage[], model: string, apiKey: str
   const system = messages
     .filter((message) => message.role === "system")
     .map((message) => message.content)
-    .join("\n\n");
+    .join("
+
+");
 
   const input = messages
     .filter((message) => message.role !== "system")
@@ -117,7 +120,8 @@ async function callAnthropic(messages: ChatMessage[], model: string, apiKey: str
   const payload = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    const detail = getProviderError(payload, "Anthropic request failed.");\n    throw new Error(`Anthropic request failed (HTTP ${response.status}): ${detail}`);
+    const detail = getProviderError(payload, "Anthropic request failed.");
+    throw new Error(`Anthropic request failed (HTTP ${response.status}): ${detail}`);
   }
 
   const textBlock = payload?.content?.find?.((item: { type?: string }) => item.type === "text");
