@@ -90,7 +90,8 @@ type GitHubOAuthConfig = {
   clientSecret: string;
 };
 
-let runtimeGitHubOAuth: GitHubOAuthConfig | null = null;\nlet runtimeTavilyApiKey = "";
+let runtimeGitHubOAuth: GitHubOAuthConfig | null = null;
+let runtimeTavilyApiKey = "";
 
 const EFITH_SYSTEM_PROMPT = `You are EFITH — a warm, sharp, genuinely human-feeling AI assistant.
 
