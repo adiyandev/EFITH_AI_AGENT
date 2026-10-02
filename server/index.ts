@@ -391,9 +391,9 @@ async function callAnthropic(messages: ChatMessage[], model: string, apiKey: str
   };
 }
 
-async function getAgentTools(): Promise<AgentTool[]> {
+async function getAgentTools(googleCookie?: string): Promise<AgentTool[]> {
   const tools: AgentTool[] = [];
-  if (isGoogleConnected()) for (const tool of GOOGLE_TOOLS) tools.push({ type:"function", function:tool as any, mcpServerId:"google", mcpToolName:tool.name });
+  if (isGoogleConnected(googleCookie)) for (const tool of GOOGLE_TOOLS) tools.push({ type:"function", function:tool as any, mcpServerId:"google", mcpToolName:tool.name });
   for (const server of configuredMcpServers) {
     try {
       if (!mcp.listConnections().some((connection) => connection.id === server.id)) await mcp.connect(server);
@@ -714,7 +714,6 @@ app.get("/api/providers", async () => {
 });
 
 app.post<{ Body: ProviderRequest }>("/api/providers/models", async (request, reply) => {
-  const googleRequestCookie = String(request.headers.cookie ?? "").split(";").map(v=>v.trim()).find(v=>v.startsWith(`${getGoogleCookieName()}=`))?.split("=")[1];
   const provider = request.body?.provider ?? "gemini";
   const config = getProviderConfig(provider, request.body?.apiKey);
 
@@ -787,6 +786,11 @@ app.post<{ Body: ProviderRequest }>("/api/providers/test", async (request, reply
 });
 
 app.post<{ Body: ChatRequest }>("/api/chat", async (request, reply) => {
+  const googleRequestCookie = String(request.headers.cookie ?? "")
+    .split(";")
+    .map((value) => value.trim())
+    .find((value) => value.startsWith(`${getGoogleCookieName()}=`))
+    ?.split("=")[1];
   const provider = request.body?.provider ?? "gemini";
   const config = getProviderConfig(provider, request.body?.apiKey);
   const messages = request.body?.messages;
