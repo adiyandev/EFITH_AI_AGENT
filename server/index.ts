@@ -703,7 +703,7 @@ app.post<{ Body: ChatRequest }>("/api/chat", async (request, reply) => {
         requiresAuth: true,
         providerName: "GitHub",
         mcpServerId: "github",
-        authUrl: "/mcp/auth/github",
+        authUrl: "/EFITH_AI_AGENT/mcp/auth/github",
       });
     }
     let workingMessages: ChatMessage[] = agentMessages;
