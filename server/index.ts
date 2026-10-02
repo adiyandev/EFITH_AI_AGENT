@@ -668,8 +668,7 @@ app.post<{ Body: ChatRequest }>("/api/chat", async (request, reply) => {
       for (const call of calls) {
         const tool = tools.find((item) => item.function.name === call.function.name);
         if (!tool) continue;
-        try {
-          const startedAt = performance.now();
+        const startedAt = performance.now();
           const toolLabel = tool.mcpServerId === "github"
             ? `GitHub · ${tool.mcpToolName}`
             : `${tool.mcpServerId} · ${tool.mcpToolName}`;
@@ -694,7 +693,6 @@ app.post<{ Body: ChatRequest }>("/api/chat", async (request, reply) => {
             workingMessages.push({ tool_call_id: call.id, role: "tool", content: JSON.stringify({ error: error instanceof Error ? error.message : "MCP tool failed." }) });
           }
       }
-    }
     return reply.code(502).send({ error: "EFITH reached the tool-call limit for this request." });
   } catch (error) {
     request.log.error(error, "Provider request failed");
