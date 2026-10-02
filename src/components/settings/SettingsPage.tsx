@@ -151,7 +151,7 @@ export function SettingsPage({ settings, onSave, onBack }: Props) {
       setOllamaModelsPath(result.path ?? "");
       setNotice({
         type: "success",
-        text: "Model storage location saved. Restart Ollama before downloading new models.",
+        text: result.running ? "Model storage location saved. Ollama restarted with the new location." : "Model storage location saved, but Ollama could not be restarted. Start Ollama before downloading new models.",
       });
     } catch (error) {
       setNotice({
