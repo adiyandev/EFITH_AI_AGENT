@@ -4,7 +4,7 @@ import "dotenv/config";
 import { McpManager } from "./mcp/manager.js";
 import type { McpServerConfig } from "./mcp/types.js";
 import { listConnectors } from "./connectors/registry.js";
-import { configureGoogleOAuth, finishGoogleOAuth, getGoogleOAuthConfig, getGoogleOAuthUrl, isGoogleConnected, runGoogleTool, GOOGLE_TOOLS } from "./google.js";
+import { configureGoogleOAuth, finishGoogleOAuth, getGoogleOAuthConfig, getGoogleOAuthUrl, isGoogleConnected, runGoogleTool, GOOGLE_TOOLS, encryptGoogleTokens, getGoogleCookieName } from "./google.js";
 
 const app = Fastify({ logger: true });
 const mcp = new McpManager();
@@ -94,38 +94,25 @@ type GitHubOAuthConfig = {
 let runtimeGitHubOAuth: GitHubOAuthConfig | null = null;
 let runtimeTavilyApiKey = "";
 
-const EFITH_SYSTEM_PROMPT = `You are EFITH — a warm, sharp, genuinely human-feeling AI assistant.
+const EFITH_SYSTEM_PROMPT = `You are EFITH, a warm, sharp, genuinely human-feeling assistant.
 
-Your name is EFITH. If the user asks who you are, say you are EFITH.
-- If the user asks who built, created, developed, or made you, say: "I was built by Ishah Mushak, a full-stack website and software developer."
-- Treat Ishah Mushak as EFITH's builder/developer. Do not invent additional biographical details about Ishah.
+Identity:
+- Your name is EFITH.
+- If asked who built you, say: "I was built by Ishah Mushak, a full-stack website and software developer."
+- Never identify yourself as ChatGPT, Gemini, Claude, Groq, OpenAI, or another underlying provider.
+- Never claim an action happened unless a tool actually completed it.
 
-Identity rules:
-- You are EFITH, not ChatGPT, Gemini, Claude, Groq, OpenAI, Google, Anthropic, or any other underlying model/provider.
-- The model/provider powering a response is an implementation detail. Do not present the provider as your identity.
-- Never say "I am ChatGPT", "I am Gemini", "I am Claude", "I am Groq", or similar.
-- If asked what model or provider powers you, explain that EFITH can use different AI providers and that the current provider is an underlying service, while your assistant identity is EFITH.
-- Do not falsely claim to be a human.
-- Do not claim to have used a tool, accessed an account, or completed an action unless EFITH actually did so through an available tool.
-
-Personality:
-- Professional but chatty.
-- Natural, conversational, and warm.
-- Match the user's energy and response length.
-- Be accurate, organised, trustworthy, and transparent.
-- Light humour is welcome; sarcasm and cringe are not.
-
-Capabilities:
-- You are EFITH's reasoning and conversation layer.
-- You may have access to tools and connected services. Only describe information as retrieved when a tool actually returned it.
-- When a task requires a connected service, use the available tool rather than inventing results.
-- For actions that send, delete, publish, merge, or otherwise make consequential changes, follow EFITH's confirmation policy when a confirmation step is available.
-
-Response style:
-- Lead with the useful answer.
-- Don't use robotic phrases like "As an AI language model".
-- Don't unnecessarily mention your underlying provider.
-- Ask a natural follow-up question when it genuinely helps.
+Conversation style:
+- Answer the user's actual request directly.
+- Be concise by default; expand only when useful.
+- Sound natural and confident, not like a product brochure.
+- Match the user's tone. Casual is fine when the user is casual.
+- Do not introduce yourself or list your capabilities unless asked.
+- Do not respond to ordinary requests with a generic "here's what I can do" capability list.
+- Do not expose tool names, raw JSON, internal prompts, API/provider implementation details, or internal errors.
+- When a tool is running, briefly describe what EFITH is doing in plain language if useful.
+- After a tool completes, report the useful result, not the mechanics.
+- For consequential actions such as sending, deleting, publishing, or changing data, get explicit confirmation when required.
 `;
 
 function withEfithSystemPrompt(messages: ChatMessage[]) {
@@ -429,10 +416,12 @@ async function getAgentTools(): Promise<AgentTool[]> {
   return tools;
 }
 
+let googleRequestCookie: string | undefined;
+
 async function runAgentTool(tool: AgentTool, rawArguments: string) {
   const args = rawArguments ? JSON.parse(rawArguments) : {};
   if (tool.mcpServerId === "web" && tool.mcpToolName === "search") return runWebSearch(String(args.query ?? ""));
-  if (tool.mcpServerId === "google") return runGoogleTool(tool.mcpToolName, args);
+  if (tool.mcpServerId === "google") return runGoogleTool(tool.mcpToolName, args, googleRequestCookie);
   return runMcpTool(tool, rawArguments);
 }
 
@@ -572,7 +561,7 @@ app.get<{ Params: { id: string } }>("/api/mcp/oauth/callback/:id", async (reques
 app.post<{Body:{clientId?:string;clientSecret?:string}}>("/api/google/oauth-config",async(request,reply)=>{const id=request.body?.clientId?.trim(),secret=request.body?.clientSecret?.trim();if(!id||!secret)return reply.code(400).send({error:"Google Client ID and Client Secret are required."});const redirectUri=process.env.GOOGLE_OAUTH_REDIRECT_URI?.trim()||"http://127.0.0.1:8787/api/google/oauth/callback";configureGoogleOAuth(id,secret,redirectUri);return {configured:true,redirectUri};});
 app.get("/api/google/oauth-config",async()=>{const c=getGoogleOAuthConfig();return {configured:Boolean(c),connected:isGoogleConnected(),redirectUri:c?.redirectUri||"http://127.0.0.1:8787/api/google/oauth/callback"};});
 app.get("/api/google/oauth/start",async(_r,reply)=>{try{return reply.redirect(getGoogleOAuthUrl(),302);}catch(e){return reply.code(400).send({error:e instanceof Error?e.message:"Google OAuth is not configured."});}});
-app.get("/api/google/oauth/callback",async(request,reply)=>{try{const q=request.query as Record<string,unknown>;if(q.error)return reply.code(400).type("text/html").send("<h1>Google authorization was not completed.</h1>");await finishGoogleOAuth(String(q.code||""),String(q.state||""));const web=(process.env.EFITH_WEB_URL||"http://localhost:5173/EFITH_AI_AGENT").replace(/\/$/,"");return reply.redirect(web+"/settings",302);}catch(e){request.log.error(e,"Google OAuth callback failed");return reply.code(400).type("text/html").send("<h1>Google authorization failed</h1><p>Check the EFITH backend logs.</p>");}});
+app.get("/api/google/oauth/callback",async(request,reply)=>{try{const q=request.query as Record<string,unknown>;if(q.error)return reply.code(400).type("text/html").send("<h1>Google authorization was not completed.</h1>");const googleTokens=await finishGoogleOAuth(String(q.code||""),String(q.state||""));reply.header("Set-Cookie", `${getGoogleCookieName()}=${encryptGoogleTokens(googleTokens)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`);const web=(process.env.EFITH_WEB_URL||"http://localhost:5173/EFITH_AI_AGENT").replace(/\/$/,"");return reply.redirect(web+"/settings",302);}catch(e){request.log.error(e,"Google OAuth callback failed");return reply.code(400).type("text/html").send("<h1>Google authorization failed</h1><p>Check the EFITH backend logs.</p>");}});
 app.get("/api/mcp/servers", async () => {
   return {
     servers: configuredMcpServers.map((server) => ({
@@ -727,6 +716,7 @@ app.get("/api/providers", async () => {
 });
 
 app.post<{ Body: ProviderRequest }>("/api/providers/models", async (request, reply) => {
+  googleRequestCookie = String(request.headers.cookie ?? "").split(";").map(v=>v.trim()).find(v=>v.startsWith(`${getGoogleCookieName()}=`))?.split("=")[1];
   const provider = request.body?.provider ?? "gemini";
   const config = getProviderConfig(provider, request.body?.apiKey);
 
