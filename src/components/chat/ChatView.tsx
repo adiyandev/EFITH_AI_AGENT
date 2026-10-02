@@ -8,6 +8,7 @@ type ChatMessage = {
   id: number;
   role: "user" | "assistant";
   content: string;
+  auth?: { providerName?: string; mcpServerId?: string; authUrl?: string };
 };
 
 type ChatViewProps = { settings: EfithSettings };
@@ -39,6 +40,19 @@ export function ChatView({ settings }: ChatViewProps) {
         }),
       });
       const payload = await response.json().catch(() => ({}));
+      if (response.status === 401 && payload.requiresAuth) {
+        setMessages((current) => [...current, {
+          id: Date.now() + 1,
+          role: "assistant",
+          content: payload.error ?? "This connection needs you to sign in.",
+          auth: {
+            providerName: payload.providerName,
+            mcpServerId: payload.mcpServerId,
+            authUrl: payload.authUrl,
+          },
+        }]);
+        return;
+      }
       if (!response.ok) throw new Error(payload.error ?? "EFITH backend request failed.");
 
       setMessages((current) => [
