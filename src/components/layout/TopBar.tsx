@@ -40,8 +40,8 @@ export function TopBar({ sidebarOpen, onOpenSidebar, settings, onChange }: TopBa
     setLoading(false);
   };
 
-  useEffect(() => { void fetchModels(); }, []);
-  useEffect(() => { if (open && !models.length) void fetchModels(); }, [open]);
+  useEffect(() => { void fetchModels(); }, [settings.apiUrl, settings.apiKeys.openai, settings.apiKeys.gemini, settings.apiKeys.anthropic, settings.apiKeys.groq]);
+  useEffect(() => { if (open && !models.length) void fetchModels(); }, [open, models.length]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
