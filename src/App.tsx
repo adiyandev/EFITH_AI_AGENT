@@ -15,6 +15,7 @@ const defaultSettings: EfithSettings = {
     openai: "",
     gemini: "",
     anthropic: "",
+    groq: "",
   },
 };
 
