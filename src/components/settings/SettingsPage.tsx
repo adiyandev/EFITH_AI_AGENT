@@ -43,6 +43,7 @@ export function SettingsPage({ settings, onSave, onBack }: Props) {
   const [githubId, setGithubId] = useState("");
   const [githubSecret, setGithubSecret] = useState("");
   const [githubConfigured, setGithubConfigured] = useState(false);
+  const [googleId,setGoogleId]=useState(""); const [googleSecret,setGoogleSecret]=useState(""); const [googleConfigured,setGoogleConfigured]=useState(false); const [googleConnected,setGoogleConnected]=useState(false); const [savingGoogle,setSavingGoogle]=useState(false);
   const [savingGithub, setSavingGithub] = useState(false);
   const [mcpForm, setMcpForm] = useState({id:"",name:"",url:"",providerName:"",authUrl:"",requiresAuth:true});
   const [addingMcp, setAddingMcp] = useState(false);
@@ -105,14 +106,17 @@ export function SettingsPage({ settings, onSave, onBack }: Props) {
 
   const loadConnections = async () => {
     try {
-      const [serversResponse, oauthResponse] = await Promise.all([
+      const [serversResponse, oauthResponse, googleResponse] = await Promise.all([
         fetch(`${api}/api/mcp/servers`),
         fetch(`${api}/api/mcp/github/oauth-config`),
+        fetch(`${api}/api/google/oauth-config`),
       ]);
       const serverPayload = await serversResponse.json().catch(() => ({}));
       const oauthPayload = await oauthResponse.json().catch(() => ({}));
+      const googlePayload = await googleResponse.json().catch(() => ({}));
       if (serversResponse.ok) setServers(serverPayload.servers ?? []);
       if (oauthResponse.ok) setGithubConfigured(Boolean(oauthPayload.configured));
+      if (googleResponse.ok) { setGoogleConfigured(Boolean(googlePayload.configured)); setGoogleConnected(Boolean(googlePayload.connected)); }
     } catch {}
   };
 
@@ -175,6 +179,8 @@ export function SettingsPage({ settings, onSave, onBack }: Props) {
     } finally { setTesting(false); }
   };
 
+  const saveGoogle=async()=>{if(!googleId.trim()||!googleSecret.trim())return;setSavingGoogle(true);setNotice(null);try{const r=await fetch(`${api}/api/google/oauth-config`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({clientId:googleId.trim(),clientSecret:googleSecret.trim()})});const p=await r.json().catch(()=>({}));if(!r.ok)throw new Error(p.error||"Could not save Google OAuth.");setGoogleConfigured(true);setGoogleSecret("");setNotice({type:"success",text:"Google OAuth is configured."});}catch(e){setNotice({type:"error",text:e instanceof Error?e.message:"Could not save Google OAuth."});}finally{setSavingGoogle(false);}};
+  const connectGoogle=()=>{window.location.href=`${api}/api/google/oauth/start`};
   const saveGithub = async () => {
     if (!githubId.trim() || !githubSecret.trim()) return;
     setSavingGithub(true); setNotice(null);
@@ -264,7 +270,7 @@ export function SettingsPage({ settings, onSave, onBack }: Props) {
               </div>
             ) : (
               <div className="settings-page-grid">
-                <section className="settings-panel settings-panel-wide">
+                <section className="settings-panel settings-panel-wide">\n                  <div className="settings-panel-heading"><div className="settings-panel-icon"><Sparkles size={17}/></div><div><h2>Google</h2><p>Connect Gmail and Google Calendar to EFITH.</p></div><span className="connection-badge">{googleConnected?"Connected":googleConfigured?"Configured":"Setup needed"}</span></div>\n                  <div className="settings-form-grid">\n                    <label><span>Google Client ID</span><input value={googleId} onChange={e=>setGoogleId(e.target.value)} placeholder="OAuth Client ID" autoComplete="off"/></label>\n                    <label><span>Google Client Secret</span><input type="password" value={googleSecret} onChange={e=>setGoogleSecret(e.target.value)} placeholder={googleConfigured?"Already saved — enter to replace":"OAuth Client Secret"} autoComplete="new-password"/></label>\n                    <label className="full"><span>OAuth callback URL</span><div className="readonly-field">{(draft.apiUrl || "http://127.0.0.1:8787").replace(/\/$/,"")}/api/google/oauth/callback</div></label>\n                  </div>\n                  <div className="settings-row-actions"><button className="settings-primary" onClick={saveGoogle} disabled={savingGoogle||!googleId.trim()||!googleSecret.trim()}>{savingGoogle?<LoaderCircle size={15} className="spin"/>:<KeyRound size={15}/>} {savingGoogle?"Saving…":googleConfigured?"Replace credentials":"Save credentials"}</button>{googleConfigured&&<button className="settings-secondary" onClick={connectGoogle}>{googleConnected?"Reconnect Google":"Connect Google"} <ArrowLeft size={14} style={{transform:"rotate(180deg)"}}/></button>}</div>\n                  <div className="settings-security warning"><ShieldCheck size={14}/><span>Google OAuth credentials stay on the backend. Gmail and Calendar access is granted during sign-in.</span></div>\n                </section>\n\n                <section className="settings-panel settings-panel-wide">
                   <div className="settings-panel-heading"><div className="settings-panel-icon"><Github size={17}/></div><div><h2>GitHub</h2><p>Connect EFITH to the official GitHub MCP server.</p></div><span className={githubConfigured ? "connection-badge connected" : "connection-badge"}>{githubConfigured ? "Configured" : "Setup needed"}</span></div>
                   <div className="settings-form-grid">
                     <label><span>GitHub Client ID</span><input value={githubId} onChange={e=>setGithubId(e.target.value)} placeholder="OAuth App Client ID" autoComplete="off"/></label>
