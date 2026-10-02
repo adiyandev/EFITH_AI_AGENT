@@ -37,7 +37,14 @@ export function SettingsPage({ settings, onSave, onBack }: Props) {
   const [mcpForm, setMcpForm] = useState({id:"",name:"",url:"",providerName:"",authUrl:"",requiresAuth:true});
   const [addingMcp, setAddingMcp] = useState(false);
   const [availableModels, setAvailableModels] = useState<string[]>(fallbackModels[settings.provider]);
-  const [modelsLoading, setModelsLoading] = useState(false);\n  const [tavilyConfigured, setTavilyConfigured] = useState(false);\n  const providerDescriptions: Record<Provider, string> = {\n    openai: "OpenAI provides EFITH’s language model for chat, reasoning, writing, and tool use.",\n    gemini: "Google Gemini provides EFITH’s language model with Google’s Gemini model family.",\n    anthropic: "Anthropic Claude provides EFITH’s language model for conversation, reasoning, and tool use.",\n    groq: "Groq provides fast model inference through its OpenAI-compatible API.",\n  };
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [tavilyConfigured, setTavilyConfigured] = useState(false);
+  const providerDescriptions: Record<Provider, string> = {
+    openai: "OpenAI provides EFITH’s language model for chat, reasoning, writing, and tool use.",
+    gemini: "Google Gemini provides EFITH’s language model with Google’s Gemini model family.",
+    anthropic: "Anthropic Claude provides EFITH’s language model for conversation, reasoning, and tool use.",
+    groq: "Groq provides fast model inference through its OpenAI-compatible API.",
+  };
 
   useEffect(() => {
     setDraft(settings);
@@ -125,7 +132,8 @@ export function SettingsPage({ settings, onSave, onBack }: Props) {
         groq: draft.apiKeys.groq.trim(),
       },
     };
-    if (!(await saveTavilyConfig())) return;\n    onSave(next);
+    if (!(await saveTavilyConfig())) return;
+    onSave(next);
     setDraft(next);
     setNotice({type:"success",text:"Settings saved."});
   };
