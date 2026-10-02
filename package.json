@@ -10,7 +10,7 @@
     "server:dev": "tsx watch server/index.ts",
     "build": "tsc -b && vite build",
     "build:renderer": "vite build",
-    "build:server": "esbuild server/index.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist-server/index.js",
+    "build:server": "esbuild server/index.ts --bundle --packages=external --platform=node --format=esm --target=node20 --outfile=dist-server/index.js",
     "build:electron": "esbuild electron/main.ts --bundle --platform=node --format=esm --target=node20 --external:electron --outfile=dist-electron/main.js && esbuild electron/preload.ts --bundle --platform=node --format=cjs --target=node20 --external:electron --outfile=dist-electron/preload.cjs",
     "electron:dev": "npm run build:renderer && npm run build:server && npm run build:electron && electron .",
     "electron:build": "npm run build:renderer && npm run build:server && npm run build:electron && electron-builder --win nsis",
