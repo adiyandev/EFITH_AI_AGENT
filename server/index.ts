@@ -284,15 +284,48 @@ async function callOpenAICompatible(
   throw new Error(`${provider} request failed after ${maxAttempts} attempts.`);
 }
 
-async function callAnthropic(messages: ChatMessage[], model: string, apiKey: string) {
+async function callAnthropic(messages: ChatMessage[], model: string, apiKey: string, tools: AgentTool[] = []) {
   const system = messages
     .filter((message) => message.role === "system")
-    .map((message) => message.content)
+    .map((message) => message.content ?? "")
     .join("\n\n");
 
   const input = messages
     .filter((message) => message.role !== "system")
-    .map(({ role, content }) => ({ role, content }));
+    .map((message) => {
+      if (message.role === "assistant" && message.tool_calls?.length) {
+        return {
+          role: "assistant",
+          content: [
+            ...(message.content ? [{ type: "text", text: message.content }] : []),
+            ...message.tool_calls.map((call) => ({
+              type: "tool_use",
+              id: call.id,
+              name: call.function.name,
+              input: (() => {
+                try { return JSON.parse(call.function.arguments || "{}"); } catch { return {}; }
+              })(),
+            })),
+          ],
+        };
+      }
+
+      if (message.role === "tool") {
+        return {
+          role: "user",
+          content: [{
+            type: "tool_result",
+            tool_use_id: message.tool_call_id,
+            content: message.content ?? "",
+          }],
+        };
+      }
+
+      return {
+        role: message.role === "assistant" ? "assistant" : "user",
+        content: message.content ?? "",
+      };
+    });
 
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -306,6 +339,13 @@ async function callAnthropic(messages: ChatMessage[], model: string, apiKey: str
       max_tokens: 4096,
       ...(system ? { system } : {}),
       messages: input,
+      ...(tools.length ? {
+        tools: tools.map(({ mcpServerId: _s, mcpToolName: _t, ...tool }) => ({
+          name: tool.function.name,
+          description: tool.function.description,
+          input_schema: tool.function.parameters,
+        })),
+      } : {}),
     }),
   });
 
@@ -316,8 +356,22 @@ async function callAnthropic(messages: ChatMessage[], model: string, apiKey: str
     throw new Error(`Anthropic request failed (HTTP ${response.status}): ${detail}`);
   }
 
-  const textBlock = payload?.content?.find?.((item: { type?: string }) => item.type === "text");
-  return textBlock?.text;
+  const content = Array.isArray(payload?.content) ? payload.content : [];
+  const text = content.filter((item: any) => item.type === "text").map((item: any) => item.text).join("\n");
+  const toolUses = content.filter((item: any) => item.type === "tool_use");
+
+  return {
+    role: "assistant",
+    content: text,
+    tool_calls: toolUses.map((item: any) => ({
+      id: item.id,
+      type: "function",
+      function: {
+        name: item.name,
+        arguments: JSON.stringify(item.input ?? {}),
+      },
+    })),
+  };
 }
 
 async function getAgentTools(): Promise<AgentTool[]> {
