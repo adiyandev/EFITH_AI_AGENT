@@ -544,7 +544,8 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
                   openai: draft.apiKeys.openai.trim(),
                   gemini: draft.apiKeys.gemini.trim(),
                   anthropic: draft.apiKeys.anthropic.trim(),
-                  groq: draft.apiKeys.groq.trim(),\n                  ollama: draft.apiKeys.ollama.trim(),
+                  groq: draft.apiKeys.groq.trim(),
+                  ollama: draft.apiKeys.ollama.trim(),
                 },
               });
               onClose();
