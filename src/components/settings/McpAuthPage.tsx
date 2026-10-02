@@ -16,7 +16,15 @@ export function McpAuthPage() {
 
   useEffect(() => {
     const id = decodeURIComponent(window.location.pathname.split("/").pop() ?? "");
-    fetch("/api/mcp/servers")
+    const saved = localStorage.getItem("efith.settings");
+    let apiUrl = "";
+    try {
+      apiUrl = JSON.parse(saved ?? "{}").apiUrl ?? "";
+    } catch {
+      apiUrl = "";
+    }
+
+    fetch(`${apiUrl}/api/mcp/servers`)
       .then(async (response) => {
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.error ?? "Could not load MCP server.");
