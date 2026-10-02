@@ -8,7 +8,7 @@ type MessageProps = {
   auth?: { providerName?: string; mcpServerId?: string; authUrl?: string };
 };
 
-export function Message({ role, content, showTools = false }: MessageProps) {
+export function Message({ role, content, showTools = false, auth }: MessageProps) {
   return (
     <motion.article
       className={`message message--${role}`}
