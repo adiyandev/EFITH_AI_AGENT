@@ -3,15 +3,22 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
     "server": "tsx server/index.ts",
     "server:dev": "tsx watch server/index.ts",
     "build": "tsc -b && vite build",
+    "build:renderer": "vite build",
+    "build:server": "esbuild server/index.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist-server/index.js",
+    "build:electron": "esbuild electron/main.ts --bundle --platform=node --format=esm --target=node20 --external:electron --outfile=dist-electron/main.js && esbuild electron/preload.ts --bundle --platform=node --format=cjs --target=node20 --external:electron --outfile=dist-electron/preload.cjs",
+    "electron:dev": "npm run build:renderer && npm run build:server && npm run build:electron && electron .",
+    "electron:build": "npm run build:renderer && npm run build:server && npm run build:electron && electron-builder --win nsis",
     "preview": "vite preview"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.2",
+    "@fastify/static": "^8.2.0",
     "dotenv": "^16.4.7",
     "fastify": "^5.2.1",
     "framer-motion": "^12.23.24",
@@ -24,9 +31,46 @@
   "devDependencies": {
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
+    "@types/node": "^22.10.2",
     "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^42.4.1",
+    "electron-builder": "^26.0.12",
+    "esbuild": "^0.27.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vite": "^5.4.11"
+  },
+  "build": {
+    "appId": "com.efith.ai",
+    "productName": "EFITH",
+    "executableName": "EFITH",
+    "asar": true,
+    "files": [
+      "dist/**",
+      "dist-electron/**",
+      "dist-server/**",
+      "package.json",
+      "EFITH logo.png"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "EFITH logo.png",
+      "artifactName": "EFITH-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "EFITH",
+      "runAfterFinish": true
+    }
   }
 }
