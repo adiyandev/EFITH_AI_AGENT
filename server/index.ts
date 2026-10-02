@@ -90,7 +90,7 @@ type GitHubOAuthConfig = {
   clientSecret: string;
 };
 
-let runtimeGitHubOAuth: GitHubOAuthConfig | null = null;
+let runtimeGitHubOAuth: GitHubOAuthConfig | null = null;\nlet runtimeTavilyApiKey = "";
 
 const EFITH_SYSTEM_PROMPT = `You are EFITH — a warm, sharp, genuinely human-feeling AI assistant.
 
@@ -180,7 +180,7 @@ function getProviderConfig(provider: ProviderName, requestApiKey?: string) {
 }
 
 async function runWebSearch(query: string) {
-  const apiKey = process.env.TAVILY_API_KEY?.trim();
+  const apiKey = runtimeTavilyApiKey || process.env.TAVILY_API_KEY?.trim();
   if (!apiKey) throw new Error("Web search is not configured. Add TAVILY_API_KEY to the backend .env.");
 
   const response = await fetch("https://api.tavily.com/search", {
@@ -471,6 +471,16 @@ async function testProvider(provider: ProviderName, model: string, apiKey: strin
     apiKey,
   );
 }
+
+app.post<{ Body: { apiKey?: string } }>("/api/web-search/config", async (request, reply) => {
+  const apiKey = request.body?.apiKey?.trim() ?? "";
+  runtimeTavilyApiKey = apiKey;
+  return { configured: Boolean(apiKey) };
+});
+
+app.get("/api/web-search/config", async () => ({
+  configured: Boolean(runtimeTavilyApiKey || process.env.TAVILY_API_KEY?.trim()),
+}));
 
 app.post<{ Body: { clientId?: string; clientSecret?: string } }>("/api/mcp/github/oauth-config", async (request, reply) => {
   const clientId = request.body?.clientId?.trim();
