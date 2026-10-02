@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Check, LoaderCircle, X } from "lucide-react";
 
-export type Provider = "openai" | "gemini" | "anthropic";
+export type Provider = "openai" | "gemini" | "anthropic" | "groq";
 export type EfithSettings = {
   apiUrl: string;
   provider: Provider;
@@ -20,12 +20,14 @@ const models: Record<Provider, string[]> = {
   openai: ["gpt-4o-mini", "gpt-4.1-mini", "gpt-4.1"],
   gemini: ["gemini-3.8-flash", "gemini-3-pro-preview"],
   anthropic: ["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-4-5-20251001"],
+  groq: ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "llama-3.3-70b-versatile", "llama-3.1-8b-instant"],
 };
 
 const labels: Record<Provider, string> = {
   openai: "OpenAI",
   gemini: "Google Gemini",
   anthropic: "Anthropic Claude",
+  groq: "Groq",
 };
 
 export function SettingsModal({ open, onClose, settings, onSave }: SettingsModalProps) {
@@ -113,6 +115,7 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
               <option value="openai">OpenAI</option>
               <option value="gemini">Google Gemini</option>
               <option value="anthropic">Anthropic Claude</option>
+              <option value="groq">Groq</option>
             </select>
           </label>
 
@@ -185,6 +188,7 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
                   openai: draft.apiKeys.openai.trim(),
                   gemini: draft.apiKeys.gemini.trim(),
                   anthropic: draft.apiKeys.anthropic.trim(),
+                  groq: draft.apiKeys.groq.trim(),
                 },
               });
               onClose();
