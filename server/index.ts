@@ -1,5 +1,6 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import fastifyStatic from "@fastify/static";
 import "dotenv/config";
 import { McpManager } from "./mcp/manager.js";
 import type { McpServerConfig } from "./mcp/types.js";
@@ -41,6 +42,21 @@ function loadMcpServers(): McpServerConfig[] {
 let configuredMcpServers = loadMcpServers();
 
 await app.register(cors, { origin: true, credentials: true });
+
+const webRoot = process.env.EFITH_WEB_ROOT;
+if (webRoot) {
+  await app.register(fastifyStatic, {
+    root: webRoot,
+    prefix: "/EFITH_AI_AGENT/",
+  });
+
+  app.setNotFoundHandler((request, reply) => {
+    if (request.url.startsWith("/EFITH_AI_AGENT/")) {
+      return reply.type("text/html").sendFile("index.html");
+    }
+    return reply.code(404).send({ error: "Not found." });
+  });
+}
 
 type ChatMessage = {
   role: "system" | "user" | "assistant" | "tool";
