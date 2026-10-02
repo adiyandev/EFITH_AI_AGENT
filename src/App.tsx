@@ -19,6 +19,7 @@ const defaultSettings: EfithSettings = {
     anthropic: "",
     groq: "",
   },
+  tavilyApiKey: "",
 };
 
 export default function App() {
@@ -43,6 +44,7 @@ function EfithApp() {
         ...defaultSettings,
         ...parsed,
         apiKeys: { ...defaultSettings.apiKeys, ...(parsed.apiKeys ?? {}) },
+        tavilyApiKey: typeof parsed.tavilyApiKey === "string" ? parsed.tavilyApiKey : "",
       };
     } catch {
       return defaultSettings;
