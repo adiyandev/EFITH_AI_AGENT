@@ -1,16 +1,23 @@
-import { app, BrowserWindow, ipcMain, safeStorage } from "electron";
+import { app, BrowserWindow, ipcMain, safeStorage, shell } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { execFile as execFileCallback } from "node:child_process";
+import { promisify } from "node:util";
+import { pipeline } from "node:stream/promises";
+import { Readable } from "node:stream";
 
 const APP_ID = "com.efith.ai";
 const PORT = 8787;
+const OLLAMA_API_URL = "http://127.0.0.1:11434";
+const OLLAMA_WINDOWS_INSTALLER_URL = "https://ollama.com/download/OllamaSetup.exe";
+const execFile = promisify(execFileCallback);
 const APP_BASE = "/EFITH_AI_AGENT/";
 const DEFAULT_SETTINGS = {
   apiUrl: "",
   provider: "gemini",
   model: "gemini-3.8-flash",
-  apiKeys: { openai: "", gemini: "", anthropic: "", groq: "" },
+  apiKeys: { openai: "", gemini: "", anthropic: "", groq: "", ollama: "" },
   tavilyApiKey: "",
 };
 
@@ -71,6 +78,103 @@ function writeStoredSettings(settings: typeof DEFAULT_SETTINGS) {
 
   fs.writeFileSync(settingsFile(), JSON.stringify(payload, null, 2), { mode: 0o600 });
 }
+
+function ollamaExecutableCandidates() {
+  if (process.platform !== "win32") return [];
+  const localAppData = process.env.LOCALAPPDATA;
+  const programFiles = process.env.ProgramFiles;
+  return [
+    localAppData ? path.join(localAppData, "Programs", "Ollama", "ollama.exe") : null,
+    programFiles ? path.join(programFiles, "Ollama", "ollama.exe") : null,
+    localAppData ? path.join(localAppData, "Ollama", "ollama.exe") : null,
+  ].filter((candidate): candidate is string => Boolean(candidate));
+}
+
+async function findOllamaExecutable() {
+  if (process.platform !== "win32") return null;
+
+  for (const candidate of ollamaExecutableCandidates()) {
+    try {
+      await fs.promises.access(candidate, fs.constants.F_OK);
+      return candidate;
+    } catch {}
+  }
+
+  try {
+    const { stdout } = await execFile("where.exe", ["ollama"], { windowsHide: true });
+    const candidate = stdout.split(/\r?\n/).map((line) => line.trim()).find(Boolean);
+    return candidate || null;
+  } catch {
+    return null;
+  }
+}
+
+async function getOllamaStatus() {
+  if (process.platform !== "win32") {
+    return { platform: process.platform, supported: false, installed: false, running: false, executablePath: null, version: null };
+  }
+
+  const executablePath = await findOllamaExecutable();
+  let version: string | null = null;
+  if (executablePath) {
+    try {
+      const result = await execFile(executablePath, ["--version"], { windowsHide: true, timeout: 5000 });
+      version = result.stdout.trim() || result.stderr.trim() || null;
+    } catch {}
+  }
+
+  let running = false;
+  try {
+    const response = await fetch(`${OLLAMA_API_URL}/api/tags`, { signal: AbortSignal.timeout(1500) });
+    running = response.ok;
+  } catch {}
+
+  return {
+    platform: process.platform,
+    supported: true,
+    installed: Boolean(executablePath) || running,
+    running,
+    executablePath,
+    version,
+  };
+}
+
+async function downloadOllamaInstaller() {
+  if (process.platform !== "win32") {
+    throw new Error("The Ollama Windows installer is only available on Windows.");
+  }
+
+  const installerPath = path.join(app.getPath("temp"), "EFITH-OllamaSetup.exe");
+  const response = await fetch(OLLAMA_WINDOWS_INSTALLER_URL, { redirect: "follow" });
+  if (!response.ok || !response.body) {
+    throw new Error(`Could not download Ollama installer (HTTP ${response.status}).`);
+  }
+
+  const file = fs.createWriteStream(installerPath);
+  await pipeline(Readable.fromWeb(response.body as any), file);
+  return { path: installerPath, url: OLLAMA_WINDOWS_INSTALLER_URL };
+}
+
+async function launchOllamaInstaller() {
+  if (process.platform !== "win32") {
+    throw new Error("The Ollama installer can only be launched on Windows.");
+  }
+
+  const installerPath = path.join(app.getPath("temp"), "EFITH-OllamaSetup.exe");
+  try {
+    await fs.promises.access(installerPath, fs.constants.F_OK);
+  } catch {
+    throw new Error("Download the Ollama installer first.");
+  }
+
+  const errorMessage = await shell.openPath(installerPath);
+  if (errorMessage) throw new Error(errorMessage);
+  return { launched: true, path: installerPath };
+}
+
+ipcMain.handle("efith:ollama:status", () => getOllamaStatus());
+ipcMain.handle("efith:ollama:download-installer", () => downloadOllamaInstaller());
+ipcMain.handle("efith:ollama:launch-installer", () => launchOllamaInstaller());
 
 ipcMain.handle("efith:settings:get", () => readStoredSettings());
 ipcMain.handle("efith:settings:save", (_event, settings) => {
