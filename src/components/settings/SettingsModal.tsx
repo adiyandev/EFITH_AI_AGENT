@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Check, CircleHelp, LoaderCircle, Plus, ShieldCheck, SlidersHorizontal, Sparkles, X } from "lucide-react";
 
-export type Provider = "openai" | "gemini" | "anthropic" | "groq";
+export type Provider = "openai" | "gemini" | "anthropic" | "groq" | "ollama";
 export type EfithSettings = {
   apiUrl: string;
   provider: Provider;
@@ -33,6 +33,7 @@ const models: Record<Provider, string[]> = {
   gemini: ["gemini-3.8-flash", "gemini-3-pro-preview"],
   anthropic: ["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-4-5-20251001"],
   groq: ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "llama-3.3-70b-versatile", "llama-3.1-8b-instant"],
+  ollama: ["llama3.2:3b"],
 };
 
 const labels: Record<Provider, string> = {
@@ -40,6 +41,7 @@ const labels: Record<Provider, string> = {
   gemini: "Google Gemini",
   anthropic: "Anthropic Claude",
   groq: "Groq",
+  ollama: "Ollama",
 };
 
 export function SettingsModal({ open, onClose, settings, onSave }: SettingsModalProps) {
@@ -158,7 +160,7 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
   const apiKey = draft.apiKeys[draft.provider] ?? "";
 
   const testConnection = async () => {
-    if (!apiKey.trim()) {
+    if (draft.provider !== "ollama" && !apiKey.trim()) {
       setTestResult("error");
       setTestMessage("Enter an API key first.");
       return;
@@ -238,6 +240,7 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
                 <option value="gemini">Google Gemini</option>
                 <option value="anthropic">Anthropic Claude</option>
                 <option value="groq">Groq</option>
+                <option value="ollama">Ollama (Local)</option>
               </select>
             </label>
 
@@ -381,7 +384,7 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
                   openai: draft.apiKeys.openai.trim(),
                   gemini: draft.apiKeys.gemini.trim(),
                   anthropic: draft.apiKeys.anthropic.trim(),
-                  groq: draft.apiKeys.groq.trim(),
+                  groq: draft.apiKeys.groq.trim(),\n                  ollama: draft.apiKeys.ollama.trim(),
                 },
               });
               onClose();
