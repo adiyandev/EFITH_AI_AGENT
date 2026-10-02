@@ -6,7 +6,7 @@ export type EfithSettings = {
   apiUrl: string;
   provider: Provider;
   model: string;
-  apiKeys: Record<Provider, string>;
+  apiKeys: Record<Provider, string>;\n  tavilyApiKey: string;
 };
 
 type McpServer = {
@@ -54,11 +54,11 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
   const [githubClientId, setGithubClientId] = useState("");
   const [githubClientSecret, setGithubClientSecret] = useState("");
   const [githubOAuthConfigured, setGithubOAuthConfigured] = useState(false);
-  const [githubOAuthSaving, setGithubOAuthSaving] = useState(false);
+  const [githubOAuthSaving, setGithubOAuthSaving] = useState(false);\n  const [tavilyApiKey, setTavilyApiKey] = useState("");
 
   useEffect(() => {
     if (open) {
-      setDraft(settings);
+      setDraft(settings);\n      setTavilyApiKey(settings.tavilyApiKey ?? "");
       setTestResult(null);
       setTestMessage("");
       setActiveTab("general");
