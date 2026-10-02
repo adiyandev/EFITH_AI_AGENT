@@ -2,7 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } from "electro
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { execFile as execFileCallback } from "node:child_process";
+import { execFile as execFileCallback, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
@@ -179,6 +179,49 @@ async function setOllamaModelsPath(modelsPath: string) {
   return { path: resolvedPath, restartRequired: true };
 }
 
+async function restartOllama(modelsPath?: string) {
+  if (process.platform !== "win32") {
+    throw new Error("Ollama restart is currently supported on Windows only.");
+  }
+
+  const executablePath = await findOllamaExecutable();
+  if (!executablePath) {
+    return { restarted: false, running: false, reason: "Ollama is not installed." };
+  }
+
+  try {
+    await execFile("taskkill.exe", ["/IM", "ollama.exe", "/T", "/F"], {
+      windowsHide: true,
+      timeout: 5000,
+    });
+  } catch {
+    // Ollama may not have been running.
+  }
+
+  const child = spawn(executablePath, [], {
+    detached: true,
+    stdio: "ignore",
+    windowsHide: true,
+    env: {
+      ...process.env,
+      ...(modelsPath ? { OLLAMA_MODELS: modelsPath } : {}),
+    },
+  });
+  child.unref();
+
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    try {
+      const response = await fetch(`${OLLAMA_API_URL}/api/tags`, {
+        signal: AbortSignal.timeout(1000),
+      });
+      if (response.ok) return { restarted: true, running: true };
+    } catch {}
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+
+  return { restarted: true, running: false };
+}
+
 async function chooseOllamaModelsPath() {
   const result = await dialog.showOpenDialog({
     title: "Choose Ollama model storage folder",
@@ -189,9 +232,15 @@ async function chooseOllamaModelsPath() {
     return { canceled: true, path: getOllamaModelsPath(), restartRequired: false };
   }
 
+  const pathResult = await setOllamaModelsPath(result.filePaths[0]);
+  const restart = await restartOllama(pathResult.path);
+
   return {
     canceled: false,
-    ...(await setOllamaModelsPath(result.filePaths[0])),
+    path: pathResult.path,
+    restartRequired: false,
+    restarted: restart.restarted,
+    running: restart.running,
   };
 }
 
@@ -233,6 +282,7 @@ ipcMain.handle("efith:ollama:download-installer", () => downloadOllamaInstaller(
 ipcMain.handle("efith:ollama:launch-installer", () => launchOllamaInstaller());
 ipcMain.handle("efith:ollama:get-models-path", () => ({ path: getOllamaModelsPath() }));
 ipcMain.handle("efith:ollama:choose-model-directory", () => chooseOllamaModelsPath());
+ipcMain.handle("efith:ollama:restart", (_event, modelsPath?: string) => restartOllama(modelsPath));
 
 ipcMain.handle("efith:settings:get", () => readStoredSettings());
 ipcMain.handle("efith:settings:save", (_event, settings) => {
