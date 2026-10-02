@@ -5,6 +5,7 @@ type MessageProps = {
   role: "user" | "assistant";
   content: string;
   showTools?: boolean;
+  auth?: { providerName?: string; mcpServerId?: string; authUrl?: string };
 };
 
 export function Message({ role, content, showTools = false }: MessageProps) {
@@ -23,6 +24,14 @@ export function Message({ role, content, showTools = false }: MessageProps) {
           </div>
         )}
         <p>{content}</p>
+        {auth && (
+          <button className="chat-auth-button" onClick={() => {
+            const target = auth.authUrl || `/mcp/auth/${encodeURIComponent(auth.mcpServerId ?? "")}`;
+            window.location.href = target;
+          }}>
+            Sign in with {auth.providerName ?? "this provider"} →
+          </button>
+        )}
       </div>
     </motion.article>
   );
