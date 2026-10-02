@@ -22,6 +22,7 @@ const defaultSettings: EfithSettings = {
     gemini: "",
     anthropic: "",
     groq: "",
+    ollama: "",
   },
   tavilyApiKey: "",
 };
