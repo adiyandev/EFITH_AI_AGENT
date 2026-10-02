@@ -51,6 +51,10 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
   const [mcpAdding, setMcpAdding] = useState(false);
   const [mcpForm, setMcpForm] = useState({ id: "", name: "", url: "", authUrl: "", providerName: "", requiresAuth: true });
   const [activeTab, setActiveTab] = useState<"general" | "mcp">("general");
+  const [githubClientId, setGithubClientId] = useState("");
+  const [githubClientSecret, setGithubClientSecret] = useState("");
+  const [githubOAuthConfigured, setGithubOAuthConfigured] = useState(false);
+  const [githubOAuthSaving, setGithubOAuthSaving] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -59,6 +63,7 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
       setTestMessage("");
       setActiveTab("general");
       void loadMcpServers();
+      void loadGitHubOAuth();
     }
   }, [open, settings]);
 
@@ -74,6 +79,42 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
       // Keep settings usable when the local backend is offline.
     } finally {
       setMcpLoading(false);
+    }
+  };
+
+  const loadGitHubOAuth = async () => {
+    try {
+      const response = await fetch(`${settings.apiUrl || ""}/api/mcp/github/oauth-config`);
+      const payload = await response.json().catch(() => ({}));
+      if (response.ok) setGithubOAuthConfigured(Boolean(payload.configured));
+    } catch {
+      // Backend may be offline.
+    }
+  };
+
+  const saveGitHubOAuth = async () => {
+    if (!githubClientId.trim() || !githubClientSecret.trim()) return;
+    setGithubOAuthSaving(true);
+    try {
+      const response = await fetch(`${settings.apiUrl || ""}/api/mcp/github/oauth-config`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId: githubClientId.trim(),
+          clientSecret: githubClientSecret.trim(),
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "Could not save GitHub OAuth.");
+      setGithubOAuthConfigured(true);
+      setGithubClientSecret("");
+      setTestResult("success");
+      setTestMessage("GitHub OAuth is configured.");
+    } catch (error) {
+      setTestResult("error");
+      setTestMessage(error instanceof Error ? error.message : "Could not save GitHub OAuth.");
+    } finally {
+      setGithubOAuthSaving(false);
     }
   };
 
@@ -242,6 +283,35 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
           <p className="settings-help">
             Connect MCP servers so EFITH can use their tools. OAuth-protected servers can send you to their sign-in page when authentication is required.
           </p>
+
+          <div className="mcp-github-oauth settings-card">
+            <div className="settings-card-heading">
+              <div className="settings-card-icon"><ShieldCheck size={16} /></div>
+              <div>
+                <strong>GitHub OAuth</strong>
+                <span>Configure the GitHub OAuth app used by the official GitHub MCP server.</span>
+              </div>
+            </div>
+            <label>
+              <span>GitHub Client ID</span>
+              <input value={githubClientId} onChange={(e) => setGithubClientId(e.target.value)} placeholder="Your GitHub OAuth App Client ID" autoComplete="off" />
+            </label>
+            <label>
+              <span>GitHub Client Secret</span>
+              <input type="password" value={githubClientSecret} onChange={(e) => setGithubClientSecret(e.target.value)} placeholder={githubOAuthConfigured ? "Already configured — enter a new one to replace it" : "Your GitHub OAuth App Client Secret"} autoComplete="new-password" />
+            </label>
+            <label>
+              <span>OAuth callback URL</span>
+              <input readOnly value={`${window.location.protocol}//127.0.0.1:8787/api/mcp/oauth/callback/github`} />
+            </label>
+            <div className="settings-action-row">
+              <button className="test-connection" onClick={saveGitHubOAuth} disabled={githubOAuthSaving || !githubClientId.trim() || !githubClientSecret.trim()}>
+                {githubOAuthSaving ? <LoaderCircle className="spin" size={15} /> : <Check size={15} />}
+                {githubOAuthSaving ? "Saving..." : githubOAuthConfigured ? "Replace OAuth credentials" : "Save GitHub OAuth"}
+              </button>
+              {githubOAuthConfigured && <span className="settings-inline-success">Configured</span>}
+            </div>
+          </div>
 
           <div className="mcp-server-list">
             {mcpLoading && <p className="settings-help">Loading MCP servers...</p>}
