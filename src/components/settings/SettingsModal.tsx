@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, LoaderCircle, X } from "lucide-react";
+import { Check, LoaderCircle, Plus, Settings2, ShieldCheck, X } from "lucide-react";
 
 export type Provider = "openai" | "gemini" | "anthropic" | "groq";
 export type EfithSettings = {
@@ -7,6 +7,17 @@ export type EfithSettings = {
   provider: Provider;
   model: string;
   apiKeys: Record<Provider, string>;
+};
+
+type McpServer = {
+  id: string;
+  name: string;
+  transport: string;
+  url?: string;
+  authUrl?: string;
+  providerName?: string;
+  requiresAuth?: boolean;
+  connected: boolean;
 };
 
 type SettingsModalProps = {
@@ -35,16 +46,62 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<"success" | "error" | null>(null);
   const [testMessage, setTestMessage] = useState("");
+  const [mcpServers, setMcpServers] = useState<McpServer[]>([]);
+  const [mcpLoading, setMcpLoading] = useState(false);
+  const [mcpAdding, setMcpAdding] = useState(false);
+  const [mcpForm, setMcpForm] = useState({ id: "", name: "", url: "", authUrl: "", providerName: "", requiresAuth: true });
 
   useEffect(() => {
     if (open) {
       setDraft(settings);
       setTestResult(null);
       setTestMessage("");
+      void loadMcpServers();
     }
   }, [open, settings]);
 
   if (!open) return null;
+
+  const loadMcpServers = async () => {
+    setMcpLoading(true);
+    try {
+      const response = await fetch(`${settings.apiUrl || ""}/api/mcp/servers`);
+      const payload = await response.json().catch(() => ({}));
+      if (response.ok) setMcpServers(payload.servers ?? []);
+    } catch {
+      // Keep settings usable when the local backend is offline.
+    } finally {
+      setMcpLoading(false);
+    }
+  };
+
+  const addMcpServer = async () => {
+    if (!mcpForm.id.trim() || !mcpForm.name.trim() || !mcpForm.url.trim()) return;
+    setMcpAdding(true);
+    try {
+      const response = await fetch(`${settings.apiUrl || ""}/api/mcp/config`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: mcpForm.id.trim(),
+          name: mcpForm.name.trim(),
+          url: mcpForm.url.trim(),
+          authUrl: mcpForm.authUrl.trim() || undefined,
+          providerName: mcpForm.providerName.trim() || mcpForm.name.trim(),
+          requiresAuth: mcpForm.requiresAuth,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "Could not add MCP server.");
+      setMcpServers((current) => [...current.filter((item) => item.id !== payload.id), payload]);
+      setMcpForm({ id: "", name: "", url: "", authUrl: "", providerName: "", requiresAuth: true });
+    } catch (error) {
+      setTestResult("error");
+      setTestMessage(error instanceof Error ? error.message : "Could not add MCP server.");
+    } finally {
+      setMcpAdding(false);
+    }
+  };
 
   const changeProvider = (provider: Provider) => {
     setDraft({ ...draft, provider, model: models[provider][0] });
@@ -174,6 +231,71 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
             Local mode: your key is saved in this browser and sent only to your local EFITH backend.
             It is not uploaded to GitHub or stored by the EFITH server.
           </p>
+        </div>
+
+        <div className="settings-section settings-mcp-section">
+          <div className="settings-section-title">
+            <div>
+              <span>MCP</span>
+              <h3>Connected apps & tools</h3>
+            </div>
+            <Settings2 size={17} />
+          </div>
+          <p className="settings-help">
+            Connect MCP servers so EFITH can use their tools. OAuth-protected servers can send you to their sign-in page when authentication is required.
+          </p>
+
+          <div className="mcp-server-list">
+            {mcpLoading && <p className="settings-help">Loading MCP servers...</p>}
+            {!mcpLoading && mcpServers.length === 0 && (
+              <p className="settings-help">No MCP servers configured yet.</p>
+            )}
+            {mcpServers.map((server) => (
+              <div className="mcp-server-card" key={server.id}>
+                <div className="mcp-server-icon"><ShieldCheck size={17} /></div>
+                <div className="mcp-server-info">
+                  <strong>{server.name}</strong>
+                  <span>{server.providerName ?? server.name} · {server.connected ? "Connected" : server.requiresAuth ? "Sign-in required" : "Not connected"}</span>
+                </div>
+                {(!server.connected && (server.authUrl || server.requiresAuth)) && (
+                  <button
+                    className="mcp-auth-button"
+                    onClick={() => {
+                      const target = server.authUrl || `/mcp/auth/${encodeURIComponent(server.id)}`;
+                      window.location.href = target;
+                    }}
+                  >
+                    Sign in with {server.providerName ?? server.name}
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="mcp-add-form">
+            <div className="settings-section-title">
+              <div>
+                <span>Add MCP</span>
+                <h3>Configure a server</h3>
+              </div>
+              <Plus size={17} />
+            </div>
+            <div className="mcp-form-grid">
+              <input value={mcpForm.id} onChange={(e) => setMcpForm({ ...mcpForm, id: e.target.value })} placeholder="Server ID (e.g. github)" />
+              <input value={mcpForm.name} onChange={(e) => setMcpForm({ ...mcpForm, name: e.target.value })} placeholder="Display name" />
+              <input value={mcpForm.providerName} onChange={(e) => setMcpForm({ ...mcpForm, providerName: e.target.value })} placeholder="Provider name (e.g. GitHub)" />
+              <input value={mcpForm.url} onChange={(e) => setMcpForm({ ...mcpForm, url: e.target.value })} placeholder="MCP URL (https://...)" />
+              <input value={mcpForm.authUrl} onChange={(e) => setMcpForm({ ...mcpForm, authUrl: e.target.value })} placeholder="Optional OAuth sign-in URL" />
+            </div>
+            <label className="mcp-auth-toggle">
+              <input type="checkbox" checked={mcpForm.requiresAuth} onChange={(e) => setMcpForm({ ...mcpForm, requiresAuth: e.target.checked })} />
+              <span>This MCP requires sign-in</span>
+            </label>
+            <button className="test-connection" onClick={addMcpServer} disabled={mcpAdding}>
+              {mcpAdding ? <LoaderCircle className="spin" size={15} /> : <Plus size={15} />}
+              {mcpAdding ? "Adding..." : "Add MCP server"}
+            </button>
+          </div>
         </div>
 
         <div className="settings-footer">
