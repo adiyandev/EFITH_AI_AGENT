@@ -6,9 +6,11 @@ type MessageProps = {
   content: string;
   showTools?: boolean;
   auth?: { providerName?: string; mcpServerId?: string; authUrl?: string };
+  thinking?: boolean;
+  toolActivities?: { id: string; label: string; durationMs: number; status: "done" | "error" }[];
 };
 
-export function Message({ role, content, showTools = false, auth }: MessageProps) {
+export function Message({ role, content, showTools = false, auth, thinking = false, toolActivities = [] }: MessageProps) {
   return (
     <motion.article
       className={`message message--${role}`}
@@ -17,13 +19,24 @@ export function Message({ role, content, showTools = false, auth }: MessageProps
     >
       {role === "assistant" && <div className="message-avatar"><span>✦</span></div>}
       <div className="message-body">
+{toolActivities.length > 0 && (
+          <div className="tool-activity-list">
+            {toolActivities.map((tool) => (
+              <ToolActivity key={tool.id} label={tool.label} durationMs={tool.durationMs} done={tool.status === "done"} />
+            ))}
+          </div>
+        )}
         {showTools && (
           <div className="tool-activity-list">
             <ToolActivity label="Checking GitHub..." done />
             <ToolActivity label="Loading repository context..." done />
           </div>
         )}
-        <p>{content}</p>
+        {thinking ? (
+          <div className="typing-bubble" aria-label="EFITH is thinking">
+            <span /><span /><span />
+          </div>
+        ) : content ? <p>{content}</p> : null}
         {auth && (
           <button className="chat-auth-button" onClick={() => {
             const target = auth.authUrl || `${import.meta.env.BASE_URL}mcp/auth/${encodeURIComponent(auth.mcpServerId ?? "")}`;
