@@ -227,7 +227,7 @@ export function SettingsPage({ settings, onSave, onBack }: Props) {
                     <div className="settings-integration-icon"><Search size={16}/></div>
                     <div className="settings-integration-copy"><div><h3>Web search</h3><span>{tavilyConfigured ? "Connected" : "Optional"}</span></div><p>Tavily gives EFITH live web search results so it can look up current information instead of relying only on built-in model knowledge.</p></div>
                     <label className="settings-integration-key"><span>Tavily API key</span><input type="password" value={draft.tavilyApiKey} onChange={e=>setDraft({...draft,tavilyApiKey:e.target.value})} placeholder="tvly-..." autoComplete="off" spellCheck={false}/></label>
-                  </div></div>
+                   </div>
                   <div className="settings-row-actions"><button className="settings-primary" onClick={testConnection} disabled={testing}>{testing?<LoaderCircle size={15} className="spin"/>:<Check size={15}/>} {testing?"Testing…":"Test connection"}</button></div>
                 </section>
 
