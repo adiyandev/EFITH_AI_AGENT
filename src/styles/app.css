@@ -1532,3 +1532,46 @@
   .suggestion-copy { padding-top: 0; }
   .welcome > p { font-size: 12px; }
 }
+
+
+.ollama-manager {
+  margin-top: 4px;
+  display: grid;
+  gap: 12px;
+}
+
+.ollama-manager .settings-card-heading {
+  margin-bottom: 0;
+}
+
+.ollama-model-list {
+  display: grid;
+  gap: 6px;
+}
+
+.ollama-model-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 38px;
+  padding: 7px 9px 7px 11px;
+  border: 1px solid var(--border, rgba(255,255,255,.08));
+  border-radius: 11px;
+}
+
+.ollama-model-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ollama-pull-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.ollama-pull-row input {
+  min-width: 0;
+}
