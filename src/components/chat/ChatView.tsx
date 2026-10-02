@@ -2,21 +2,26 @@ import { useState } from "react";
 import { Composer } from "./Composer";
 import { Message } from "./Message";
 import { WelcomeScreen } from "./WelcomeScreen";
+import type { EfithSettings } from "../settings/SettingsModal";
 
 type ChatMessage = {
   id: number;
   role: "user" | "assistant";
   content: string;
-  showTools?: boolean;
 };
 
-export function ChatView() {
+type ChatViewProps = {
+  settings: EfithSettings;
+};
+
+export function ChatView({ settings }: ChatViewProps) {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const sendMessage = () => {
+  const sendMessage = async () => {
     const content = message.trim();
-    if (!content) return;
+    if (!content || loading) return;
 
     const userMessage: ChatMessage = {
       id: Date.now(),
@@ -24,17 +29,54 @@ export function ChatView() {
       content,
     };
 
-    setMessages((current) => [
-      ...current,
-      userMessage,
-      {
-        id: Date.now() + 1,
-        role: "assistant",
-        content: "I'm ready. My real agent tools will connect here next.",
-        showTools: true,
-      },
-    ]);
+    const nextMessages = [...messages, userMessage];
+    setMessages(nextMessages);
     setMessage("");
+    setLoading(true);
+
+    try {
+      const baseUrl = settings.apiUrl || "";
+      const response = await fetch(`${baseUrl}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: settings.model,
+          messages: nextMessages.map(({ role, content: text }) => ({
+            role,
+            content: text,
+          })),
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "EFITH backend request failed.");
+      }
+
+      setMessages((current) => [
+        ...current,
+        {
+          id: Date.now() + 1,
+          role: "assistant",
+          content: payload.message?.content ?? "The backend returned an empty response.",
+        },
+      ]);
+    } catch (error) {
+      setMessages((current) => [
+        ...current,
+        {
+          id: Date.now() + 1,
+          role: "assistant",
+          content:
+            error instanceof Error
+              ? `I couldn't reach the EFITH backend: ${error.message}`
+              : "I couldn't reach the EFITH backend.",
+        },
+      ]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const hasMessages = messages.length > 0;
@@ -48,6 +90,12 @@ export function ChatView() {
           {messages.map((item) => (
             <Message key={item.id} {...item} />
           ))}
+          {loading && (
+            <Message
+              role="assistant"
+              content="Thinking..."
+            />
+          )}
         </div>
       )}
 
