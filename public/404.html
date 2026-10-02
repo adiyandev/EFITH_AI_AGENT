@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EFITH</title>
+    <script>
+      // Preserve SPA routes when GitHub Pages serves the 404 document.
+      const path = window.location.pathname;
+      const search = window.location.search;
+      const hash = window.location.hash;
+      const base = "/EFITH_AI_AGENT/";
+      if (path.startsWith(base)) {
+        const route = path.slice(base.length);
+        const redirect = base + "?/" + route + search + hash;
+        window.location.replace(redirect);
+      }
+    </script>
+  </head>
+  <body></body>
+</html>
