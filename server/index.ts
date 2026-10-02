@@ -55,6 +55,13 @@ type ProviderToolCall = {
   function: { name: string; arguments: string };
 };
 
+type ToolActivityResult = {
+  id: string;
+  label: string;
+  durationMs: number;
+  status: "done" | "error";
+};
+
 type AgentTool = {
   type: "function";
   function: {
@@ -633,6 +640,7 @@ app.post<{ Body: ChatRequest }>("/api/chat", async (request, reply) => {
 
   try {
     const tools = await getAgentTools();
+    const toolActivities: ToolActivityResult[] = [];
     const latestUserText = [...messages].reverse().find((item) => item.role === "user")?.content ?? "";
     const githubServer = configuredMcpServers.find((server) => server.id === "github");
     const githubConnected = mcp.listConnections().some((connection) => connection.id === "github");
@@ -654,20 +662,37 @@ app.post<{ Body: ChatRequest }>("/api/chat", async (request, reply) => {
       if (!calls.length) {
         const text = typeof result === "string" ? result : result?.content;
         if (typeof text !== "string") return reply.code(502).send({ error: provider + " returned no text content." });
-        return { provider, model, message: { role: "assistant", content: text } };
+        return { provider, model, toolActivities, message: { role: "assistant", content: text } };
       }
       workingMessages.push({ role: "assistant", content: result.content ?? "", tool_calls: calls });
       for (const call of calls) {
         const tool = tools.find((item) => item.function.name === call.function.name);
         if (!tool) continue;
         try {
-          const toolResult = await runMcpTool(tool, call.function.arguments);
-          workingMessages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(toolResult) });
-        } catch (error) {
-          const auth = (error as any)?.mcpAuth;
-          if (auth) return reply.code(401).send({ error: error instanceof Error ? error.message : "Authentication required.", ...auth });
-          workingMessages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ error: error instanceof Error ? error.message : "MCP tool failed." }) });
-        }
+          const startedAt = performance.now();
+          const toolLabel = tool.mcpServerId === "github"
+            ? `GitHub · ${tool.mcpToolName}`
+            : `${tool.mcpServerId} · ${tool.mcpToolName}`;
+          try {
+            const toolResult = await runMcpTool(tool, call.function.arguments);
+            toolActivities.push({
+              id: call.id,
+              label: toolLabel,
+              durationMs: Math.round(performance.now() - startedAt),
+              status: "done",
+            });
+            workingMessages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(toolResult) });
+          } catch (error) {
+            toolActivities.push({
+              id: call.id,
+              label: toolLabel,
+              durationMs: Math.round(performance.now() - startedAt),
+              status: "error",
+            });
+            const auth = (error as any)?.mcpAuth;
+            if (auth) return reply.code(401).send({ error: error instanceof Error ? error.message : "Authentication required.", ...auth, toolActivities });
+            workingMessages.push({ tool_call_id: call.id, role: "tool", content: JSON.stringify({ error: error instanceof Error ? error.message : "MCP tool failed." }) });
+          }
       }
     }
     return reply.code(502).send({ error: "EFITH reached the tool-call limit for this request." });
