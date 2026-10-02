@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, CircleHelp, LoaderCircle, Plus, ShieldCheck, SlidersHorizontal, Sparkles, X } from "lucide-react";
+import { Check, CircleHelp, Download, LoaderCircle, Plus, RefreshCw, ShieldCheck, SlidersHorizontal, Sparkles, Trash2, X } from "lucide-react";
 
 export type Provider = "openai" | "gemini" | "anthropic" | "groq" | "ollama";
 export type EfithSettings = {
@@ -59,6 +59,13 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
   const [githubOAuthConfigured, setGithubOAuthConfigured] = useState(false);
   const [githubOAuthSaving, setGithubOAuthSaving] = useState(false);
   const [tavilyApiKey, setTavilyApiKey] = useState("");
+  const [ollamaModels, setOllamaModels] = useState<string[]>([]);
+  const [ollamaLoading, setOllamaLoading] = useState(false);
+  const [ollamaPulling, setOllamaPulling] = useState(false);
+  const [ollamaDeleting, setOllamaDeleting] = useState<string | null>(null);
+  const [ollamaModelInput, setOllamaModelInput] = useState("");
+  const [ollamaProgress, setOllamaProgress] = useState("");
+  const [ollamaStatus, setOllamaStatus] = useState<"unknown" | "running" | "offline">("unknown");
 
   useEffect(() => {
     if (open) {
@@ -69,6 +76,7 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
       setActiveTab("general");
       void loadMcpServers();
       void loadGitHubOAuth();
+      if (settings.provider === "ollama") void loadOllamaModels();
     }
   }, [open, settings]);
 
@@ -85,6 +93,87 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
     } finally {
       setMcpLoading(false);
     }
+  };
+
+  const loadOllamaModels = async () => {
+    setOllamaLoading(true);
+    try {
+      const response = await fetch((settings.apiUrl || "") + "/api/providers/models", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: "ollama" }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "Ollama is not running.");
+      const nextModels = Array.isArray(payload.models) ? payload.models : [];
+      setOllamaModels(nextModels);
+      setOllamaStatus("running");
+      setDraft((current) => current.provider === "ollama"
+        ? { ...current, model: nextModels.includes(current.model) ? current.model : nextModels[0] ?? current.model }
+        : current);
+    } catch (error) {
+      setOllamaStatus("offline");
+      setOllamaModels([]);
+      setTestMessage(error instanceof Error ? error.message : "Ollama is not running.");
+    } finally { setOllamaLoading(false); }
+  };
+
+  const pullOllamaModel = async () => {
+    const model = ollamaModelInput.trim();
+    if (!model || ollamaPulling) return;
+    setOllamaPulling(true); setOllamaProgress("Starting download…"); setTestResult(null);
+    try {
+      const response = await fetch((settings.apiUrl || "") + "/api/ollama/pull", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error ?? "Could not download model.");
+      }
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("Model download stream is unavailable.");
+      const decoder = new TextDecoder(); let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read(); if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n"); buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const event = JSON.parse(line);
+            if (event.total && event.completed) {
+              const percent = Math.round((Number(event.completed) / Number(event.total)) * 100);
+              setOllamaProgress((event.status ?? "Downloading") + " · " + percent + "%");
+            } else if (event.status) setOllamaProgress(String(event.status));
+          } catch {}
+        }
+      }
+      setOllamaModelInput(""); setOllamaProgress("Model installed.");
+      await loadOllamaModels();
+      setDraft((current) => ({ ...current, provider: "ollama", model }));
+      setTestResult("success"); setTestMessage(model + " is ready.");
+    } catch (error) {
+      setTestResult("error"); setOllamaProgress("");
+      setTestMessage(error instanceof Error ? error.message : "Could not download model.");
+    } finally { setOllamaPulling(false); }
+  };
+
+  const deleteOllamaModel = async (model: string) => {
+    if (ollamaDeleting) return;
+    setOllamaDeleting(model);
+    try {
+      const response = await fetch((settings.apiUrl || "") + "/api/ollama/models", {
+        method: "DELETE", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "Could not delete model.");
+      const remaining = ollamaModels.filter((item) => item !== model);
+      setOllamaModels(remaining);
+      setDraft((current) => current.model === model ? { ...current, model: remaining[0] ?? "llama3.2:3b" } : current);
+    } catch (error) {
+      setTestResult("error"); setTestMessage(error instanceof Error ? error.message : "Could not delete model.");
+    } finally { setOllamaDeleting(null); }
   };
 
   const loadGitHubOAuth = async () => {
@@ -152,7 +241,8 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
   };
 
   const changeProvider = (provider: Provider) => {
-    setDraft({ ...draft, provider, model: models[provider][0] });
+    setDraft({ ...draft, provider, model: provider === "ollama" ? ollamaModels[0] ?? models.ollama[0] : models[provider][0] });
+    if (provider === "ollama") void loadOllamaModels();
     setTestResult(null);
     setTestMessage("");
   };
@@ -250,6 +340,25 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
                 {models[draft.provider].map((model) => <option key={model} value={model}>{model}</option>)}
               </select>
             </label>
+            {draft.provider === "ollama" && (
+              <div className="settings-card ollama-manager">
+                <div className="settings-card-heading">
+                  <div className="settings-card-icon"><Sparkles size={16} /></div>
+                  <div><strong>Local models</strong><span>{ollamaStatus === "running" ? "Ollama is running." : ollamaStatus === "offline" ? "Ollama is not running." : "Checking Ollama…"}</span></div>
+                  <button className="icon-button" onClick={() => void loadOllamaModels()} disabled={ollamaLoading} aria-label="Refresh Ollama models"><RefreshCw className={ollamaLoading ? "spin" : ""} size={15} /></button>
+                </div>
+                <div className="ollama-model-list">
+                  {ollamaModels.length ? ollamaModels.map((model) => (
+                    <div className="ollama-model-row" key={model}><span>{model}</span><button className="icon-button" onClick={() => void deleteOllamaModel(model)} disabled={ollamaDeleting === model} aria-label={"Delete " + model}>{ollamaDeleting === model ? <LoaderCircle className="spin" size={15} /> : <Trash2 size={15} />}</button></div>
+                  )) : <span className="settings-help">No local models installed yet.</span>}
+                </div>
+                <div className="ollama-pull-row">
+                  <input value={ollamaModelInput} onChange={(e) => setOllamaModelInput(e.target.value)} placeholder="e.g. qwen3:8b" onKeyDown={(e) => { if (e.key === "Enter") void pullOllamaModel(); }} />
+                  <button className="test-connection" onClick={() => void pullOllamaModel()} disabled={ollamaPulling || !ollamaModelInput.trim()}>{ollamaPulling ? <LoaderCircle className="spin" size={15} /> : <Download size={15} />}{ollamaPulling ? "Downloading..." : "Download"}</button>
+                </div>
+                {ollamaProgress && <span className="settings-help">{ollamaProgress}</span>}
+              </div>
+            )}
 
             {draft.provider !== "ollama" && (
               <label>
