@@ -179,6 +179,34 @@ function getProviderConfig(provider: ProviderName, requestApiKey?: string) {
   };
 }
 
+async function runWebSearch(query: string) {
+  const apiKey = process.env.TAVILY_API_KEY?.trim();
+  if (!apiKey) throw new Error("Web search is not configured. Add TAVILY_API_KEY to the backend .env.");
+
+  const response = await fetch("https://api.tavily.com/search", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      api_key: apiKey,
+      query,
+      search_depth: "advanced",
+      max_results: 5,
+      include_answer: false,
+    }),
+  });
+  const payload: any = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(getProviderError(payload, "Web search failed."));
+  return {
+    query,
+    results: (payload.results ?? []).map((item: any) => ({
+      title: item.title,
+      url: item.url,
+      content: item.content,
+      score: item.score,
+    })),
+  };
+}
+
 function getProviderError(payload: any, fallback: string) {
   return payload?.error?.message ?? payload?.error?.detail ?? payload?.message ?? fallback;
 }
@@ -396,6 +424,14 @@ async function getAgentTools(): Promise<AgentTool[]> {
     }
   }
   return tools;
+}
+
+async function runAgentTool(tool: AgentTool, rawArguments: string) {
+  const args = rawArguments ? JSON.parse(rawArguments) : {};
+  if (tool.mcpServerId === "web" && tool.mcpToolName === "search") {
+    return runWebSearch(String(args.query ?? ""));
+  }
+  return runMcpTool(tool, rawArguments);
 }
 
 async function runMcpTool(tool: AgentTool, rawArguments: string) {
@@ -798,7 +834,7 @@ app.post<{ Body: ChatRequest }>("/api/chat", async (request, reply) => {
             ? `GitHub · ${tool.mcpToolName}`
             : `${tool.mcpServerId} · ${tool.mcpToolName}`;
           try {
-            const toolResult = await runMcpTool(tool, call.function.arguments);
+            const toolResult = await runAgentTool(tool, call.function.arguments);
             toolActivities.push({
               id: call.id,
               label: toolLabel,
