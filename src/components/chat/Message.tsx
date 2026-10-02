@@ -7,7 +7,7 @@ type MessageProps = {
   showTools?: boolean;
   auth?: { providerName?: string; mcpServerId?: string; authUrl?: string };
   thinking?: boolean;
-  toolActivities?: { id: string; label: string; durationMs: number; status: "done" | "error" }[];
+  toolActivities?: { id: string; label: string; durationMs: number; status: "done" | "error" | "running" }[];
 };
 
 export function Message({ role, content, showTools = false, auth, thinking = false, toolActivities = [] }: MessageProps) {
@@ -22,7 +22,7 @@ export function Message({ role, content, showTools = false, auth, thinking = fal
 {toolActivities.length > 0 && (
           <div className="tool-activity-list">
             {toolActivities.map((tool) => (
-              <ToolActivity key={tool.id} label={tool.label} durationMs={tool.durationMs} done={tool.status === "done"} />
+              <ToolActivity key={tool.id} label={tool.label} durationMs={tool.durationMs} done={tool.status === "done"} running={tool.status === "running"} />
             ))}
           </div>
         )}
