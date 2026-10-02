@@ -295,8 +295,7 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
             </button>
           </div>
         </div>
-
-        )
+        )}
         <div className="settings-footer">
           <button className="settings-cancel" onClick={onClose}>Cancel</button>
           <button
