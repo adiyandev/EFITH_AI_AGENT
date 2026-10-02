@@ -601,6 +601,58 @@ app.get("/api/providers", async () => {
   };
 });
 
+app.post<{ Body: ProviderRequest }>("/api/providers/models", async (request, reply) => {
+  const provider = request.body?.provider ?? "gemini";
+  const config = getProviderConfig(provider, request.body?.apiKey);
+
+  if (!config.apiKey) {
+    return reply.code(400).send({ error: `${provider} API key is required.` });
+  }
+
+  try {
+    let response: Response;
+    if (provider === "gemini") {
+      response = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000", {
+        headers: { "x-goog-api-key": config.apiKey },
+      });
+    } else {
+      response = await fetch(`${config.baseUrl}/models`, {
+        headers: { Authorization: `Bearer ${config.apiKey}` },
+      });
+    }
+
+    const payload: any = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(getProviderError(payload, `Could not fetch ${provider} models.`));
+    }
+
+    let models: string[] = [];
+    if (provider === "gemini") {
+      models = (payload.models ?? [])
+        .filter((item: any) => (item.supportedGenerationMethods ?? item.supported_actions ?? []).includes("generateContent"))
+        .map((item: any) => item.baseModelId || String(item.name ?? "").replace(/^models\//, ""))
+        .filter(Boolean);
+    } else {
+      models = (payload.data ?? [])
+        .filter((item: any) => {
+          const id = String(item.id ?? "");
+          if (provider === "openai") return /^(gpt-|o[1-9]|chatgpt-)/i.test(id);
+          if (provider === "anthropic") return /^claude-/i.test(id);
+          return item.active !== false && !/whisper|guard|tts|speech|audio|vision/i.test(id);
+        })
+        .map((item: any) => String(item.id))
+        .filter(Boolean);
+    }
+
+    return { provider, models: [...new Set(models)].sort() };
+  } catch (error) {
+    request.log.error(error, "Model discovery failed");
+    return reply.code(502).send({
+      error: error instanceof Error ? error.message : "Could not fetch provider models.",
+    });
+  }
+});
+
 app.post<{ Body: ProviderRequest }>("/api/providers/test", async (request, reply) => {
   const provider = request.body?.provider ?? "gemini";
   const config = getProviderConfig(provider, request.body?.apiKey);
