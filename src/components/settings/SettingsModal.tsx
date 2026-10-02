@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, CircleHelp, Download, LoaderCircle, Plus, RefreshCw, ShieldCheck, SlidersHorizontal, Sparkles, Trash2, X } from "lucide-react";
+import { Check, CircleHelp, Download, ExternalLink, LoaderCircle, Plus, RefreshCw, ShieldCheck, SlidersHorizontal, Sparkles, Trash2, X } from "lucide-react";
 
 export type Provider = "openai" | "gemini" | "anthropic" | "groq" | "ollama";
 export type EfithSettings = {
@@ -66,6 +66,9 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
   const [ollamaModelInput, setOllamaModelInput] = useState("");
   const [ollamaProgress, setOllamaProgress] = useState("");
   const [ollamaStatus, setOllamaStatus] = useState<"unknown" | "running" | "offline">("unknown");
+  const [ollamaInstalled, setOllamaInstalled] = useState(false);
+  const [ollamaInstallerReady, setOllamaInstallerReady] = useState(false);
+  const [ollamaInstallerBusy, setOllamaInstallerBusy] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -76,7 +79,7 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
       setActiveTab("general");
       void loadMcpServers();
       void loadGitHubOAuth();
-      if (settings.provider === "ollama") void loadOllamaModels();
+      if (settings.provider === "ollama") { void loadOllamaDesktopStatus(); void loadOllamaModels(); }
     }
   }, [open, settings]);
 
@@ -93,6 +96,41 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
     } finally {
       setMcpLoading(false);
     }
+  };
+
+  const loadOllamaDesktopStatus = async () => {
+    if (!window.electronAPI?.ollama) return;
+    try {
+      const status = await window.electronAPI.ollama.getStatus();
+      setOllamaInstalled(status.installed);
+      setOllamaStatus(status.running ? "running" : "offline");
+    } catch {
+      setOllamaInstalled(false);
+      setOllamaStatus("offline");
+    }
+  };
+
+  const downloadOllamaInstaller = async () => {
+    if (!window.electronAPI?.ollama || ollamaInstallerBusy) return;
+    setOllamaInstallerBusy(true); setTestResult(null); setTestMessage("");
+    try {
+      await window.electronAPI.ollama.downloadInstaller();
+      setOllamaInstallerReady(true);
+      setTestResult("success"); setTestMessage("Ollama installer downloaded.");
+    } catch (error) {
+      setTestResult("error"); setTestMessage(error instanceof Error ? error.message : "Could not download Ollama installer.");
+    } finally { setOllamaInstallerBusy(false); }
+  };
+
+  const launchOllamaInstaller = async () => {
+    if (!window.electronAPI?.ollama || ollamaInstallerBusy) return;
+    setOllamaInstallerBusy(true); setTestResult(null); setTestMessage("");
+    try {
+      await window.electronAPI.ollama.launchInstaller();
+      setTestResult("success"); setTestMessage("Ollama installer launched. Complete the installation, then refresh.");
+    } catch (error) {
+      setTestResult("error"); setTestMessage(error instanceof Error ? error.message : "Could not launch Ollama installer.");
+    } finally { setOllamaInstallerBusy(false); }
   };
 
   const loadOllamaModels = async () => {
@@ -242,7 +280,7 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
 
   const changeProvider = (provider: Provider) => {
     setDraft({ ...draft, provider, model: provider === "ollama" ? ollamaModels[0] ?? models.ollama[0] : models[provider][0] });
-    if (provider === "ollama") void loadOllamaModels();
+    if (provider === "ollama") { void loadOllamaDesktopStatus(); void loadOllamaModels(); }
     setTestResult(null);
     setTestMessage("");
   };
@@ -337,7 +375,7 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
             <label>
               <span>Model</span>
               <select value={draft.model} onChange={(e) => { setDraft({ ...draft, model: e.target.value }); setTestResult(null); }}>
-                {models[draft.provider].map((model) => <option key={model} value={model}>{model}</option>)}
+                {(draft.provider === "ollama" && ollamaModels.length ? ollamaModels : models[draft.provider]).map((model) => <option key={model} value={model}>{model}</option>)}
               </select>
             </label>
             {draft.provider === "ollama" && (
@@ -347,6 +385,17 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
                   <div><strong>Local models</strong><span>{ollamaStatus === "running" ? "Ollama is running." : ollamaStatus === "offline" ? "Ollama is not running." : "Checking Ollama…"}</span></div>
                   <button className="icon-button" onClick={() => void loadOllamaModels()} disabled={ollamaLoading} aria-label="Refresh Ollama models"><RefreshCw className={ollamaLoading ? "spin" : ""} size={15} /></button>
                 </div>
+                {window.electronAPI?.ollama && (
+                  <div className="settings-action-row">
+                    <span className="settings-help">{ollamaInstalled ? "Ollama is installed on this PC." : "Ollama is not installed on this PC."}</span>
+                    {!ollamaInstalled && (
+                      <button className="test-connection" onClick={() => void (ollamaInstallerReady ? launchOllamaInstaller() : downloadOllamaInstaller())} disabled={ollamaInstallerBusy}>
+                        {ollamaInstallerBusy ? <LoaderCircle className="spin" size={15} /> : ollamaInstallerReady ? <ExternalLink size={15} /> : <Download size={15} />}
+                        {ollamaInstallerBusy ? "Working..." : ollamaInstallerReady ? "Install Ollama" : "Download Ollama"}
+                      </button>
+                    )}
+                  </div>
+                )}
                 <div className="ollama-model-list">
                   {ollamaModels.length ? ollamaModels.map((model) => (
                     <div className="ollama-model-row" key={model}><span>{model}</span><button className="icon-button" onClick={() => void deleteOllamaModel(model)} disabled={ollamaDeleting === model} aria-label={"Delete " + model}>{ollamaDeleting === model ? <LoaderCircle className="spin" size={15} /> : <Trash2 size={15} />}</button></div>
