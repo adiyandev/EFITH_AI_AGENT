@@ -34,6 +34,7 @@ export function ChatView({ settings }: ChatViewProps) {
         body: JSON.stringify({
           provider: settings.provider,
           model: settings.model,
+          apiKey: settings.apiKeys[settings.provider],
           messages: nextMessages.map(({ role, content: text }) => ({ role, content: text })),
         }),
       });
