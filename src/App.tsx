@@ -5,6 +5,7 @@ import { ChatView } from "./components/chat/ChatView";
 import { EfithSettings, SettingsModal, Provider } from "./components/settings/SettingsModal";
 import "./styles/app.css";
 import { McpAuthPage } from "./components/settings/McpAuthPage";
+import { SettingsPage } from "./components/settings/SettingsPage";
 
 const SETTINGS_KEY = "efith.settings";
 
@@ -27,7 +28,12 @@ export default function App() {
 
 function EfithApp() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(window.location.pathname.endsWith("/settings"));
+  useEffect(() => {
+    const onPop = () => setSettingsOpen(window.location.pathname.endsWith("/settings"));
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
   const [settings, setSettings] = useState<EfithSettings>(() => {
     try {
       const saved = localStorage.getItem(SETTINGS_KEY);
@@ -47,12 +53,28 @@ function EfithApp() {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
   }, [settings]);
 
+  if (settingsOpen) {
+    return (
+      <SettingsPage
+        settings={settings}
+        onSave={setSettings}
+        onBack={() => {
+          window.history.pushState({}, "", "/EFITH_AI_AGENT/");
+          setSettingsOpen(false);
+        }}
+      />
+    );
+  }
+
   return (
     <main className="app-shell">
       <Sidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
-        onSettings={() => setSettingsOpen(true)}
+        onSettings={() => {
+          window.history.pushState({}, "", "/EFITH_AI_AGENT/settings");
+          setSettingsOpen(true);
+        }}
       />
       <section className="chat-panel">
         <TopBar
