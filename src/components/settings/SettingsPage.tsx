@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Check, CircleHelp, Github, KeyRound, LoaderCircle, Plus, ShieldCheck, Sparkles, Trash2, Zap } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, CircleHelp, Github, KeyRound, LoaderCircle, Plus, RefreshCw, ShieldCheck, Sparkles, Trash2, Zap } from "lucide-react";
 import type { EfithSettings, Provider } from "./SettingsModal";
 
 type McpServer = {
@@ -13,7 +13,7 @@ type Props = {
   onBack: () => void;
 };
 
-const models: Record<Provider, string[]> = {
+const fallbackModels: Record<Provider, string[]> = {
   openai: ["gpt-4o-mini", "gpt-4.1-mini", "gpt-4.1"],
   gemini: ["gemini-3.8-flash", "gemini-3-pro-preview"],
   anthropic: ["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-4-5-20251001"],
@@ -36,6 +36,8 @@ export function SettingsPage({ settings, onSave, onBack }: Props) {
   const [savingGithub, setSavingGithub] = useState(false);
   const [mcpForm, setMcpForm] = useState({id:"",name:"",url:"",providerName:"",authUrl:"",requiresAuth:true});
   const [addingMcp, setAddingMcp] = useState(false);
+  const [availableModels, setAvailableModels] = useState<string[]>(fallbackModels[settings.provider]);
+  const [modelsLoading, setModelsLoading] = useState(false);
 
   useEffect(() => {
     setDraft(settings);
@@ -43,6 +45,36 @@ export function SettingsPage({ settings, onSave, onBack }: Props) {
   }, [settings]);
 
   const api = draft.apiUrl || "";
+
+  const fetchProviderModels = async (provider: Provider, apiKey: string) => {
+    if (!apiKey.trim()) {
+      setAvailableModels(fallbackModels[provider]);
+      return;
+    }
+    setModelsLoading(true);
+    try {
+      const response = await fetch(`${api}/api/providers/models`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider, apiKey: apiKey.trim() }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "Could not fetch models.");
+      const discovered = Array.isArray(payload.models) ? payload.models.filter((model: unknown): model is string => typeof model === "string") : [];
+      setAvailableModels(discovered.length ? discovered : fallbackModels[provider]);
+    } catch {
+      setAvailableModels(fallbackModels[provider]);
+    } finally {
+      setModelsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const provider = draft.provider;
+    const key = draft.apiKeys[provider] ?? "";
+    const timer = window.setTimeout(() => void fetchProviderModels(provider, key), 350);
+    return () => window.clearTimeout(timer);
+  }, [draft.provider, draft.apiKeys, draft.apiUrl]);
 
   const loadConnections = async () => {
     try {
@@ -154,8 +186,8 @@ export function SettingsPage({ settings, onSave, onBack }: Props) {
                 <section className="settings-panel settings-panel-wide">
                   <div className="settings-panel-heading"><div className="settings-panel-icon"><Sparkles size={17}/></div><div><h2>AI provider</h2><p>Choose the provider and model EFITH should use.</p></div></div>
                   <div className="settings-form-grid">
-                    <label><span>Provider</span><select value={draft.provider} onChange={e=>setDraft({...draft,provider:e.target.value as Provider,model:models[e.target.value as Provider][0]})}>{(Object.keys(labels) as Provider[]).map(p=><option key={p} value={p}>{labels[p]}</option>)}</select></label>
-                    <label><span>Model</span><select value={draft.model} onChange={e=>setDraft({...draft,model:e.target.value})}>{models[draft.provider].map(m=><option key={m}>{m}</option>)}</select></label>
+                    <label><span>Provider</span><select value={draft.provider} onChange={e=>{ const provider=e.target.value as Provider; const nextModel=fallbackModels[provider][0] ?? ""; setDraft({...draft,provider,model:nextModel}); void fetchProviderModels(provider,draft.apiKeys[provider]??""); }}>{(Object.keys(labels) as Provider[]).map(p=><option key={p} value={p}>{labels[p]}</option>)}</select></label>
+                    <label><span>Model <em>{modelsLoading ? "Fetching live models…" : `${availableModels.length} available`}</em></span><div className="settings-select"><select value={draft.model} onChange={e=>setDraft({...draft,model:e.target.value})}>{availableModels.map(m=><option key={m}>{m}</option>)}</select><ChevronDown size={15}/>{modelsLoading&&<LoaderCircle size={13} className="settings-select-spinner spin"/>}</div></label>
                     <label className="full"><span>{labels[draft.provider]} API key</span><div className="input-icon"><KeyRound size={15}/><input type="password" value={draft.apiKeys[draft.provider]??""} onChange={e=>setDraft({...draft,apiKeys:{...draft.apiKeys,[draft.provider]:e.target.value}})} placeholder="Paste your API key" autoComplete="off" spellCheck={false}/></div></label>
                   </div>
                   <div className="settings-row-actions"><button className="settings-primary" onClick={testConnection} disabled={testing}>{testing?<LoaderCircle size={15} className="spin"/>:<Check size={15}/>} {testing?"Testing…":"Test connection"}</button></div>
