@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Composer } from "./Composer";
 import { Message } from "./Message";
 import { WelcomeScreen } from "./WelcomeScreen";
@@ -13,11 +13,45 @@ type ChatMessage = {
 };
 
 type ChatViewProps = { settings: EfithSettings };
+type StoredChat = { id: string; title: string; messages: ChatMessage[]; updatedAt: number };
+const CHAT_INDEX_KEY = "efith.chat.index";
+const chatKey = (id: string) => `efith.chat.${id}`;
 
 export function ChatView({ settings }: ChatViewProps) {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
+  const [chatId, setChatId] = useState(() => `chat-${Date.now()}`);
+
+  useEffect(() => {
+    const save = () => {
+      if (!messages.length) return;
+      const title = messages.find((m) => m.role === "user")?.content.slice(0, 48) || "New chat";
+      const record: StoredChat = { id: chatId, title, messages, updatedAt: Date.now() };
+      localStorage.setItem(chatKey(chatId), JSON.stringify(record));
+      let index: { id: string; title: string; updatedAt: number }[] = [];
+      try { index = JSON.parse(localStorage.getItem(CHAT_INDEX_KEY) ?? "[]"); } catch {}
+      index = [{ id: chatId, title, updatedAt: record.updatedAt }, ...index.filter((item) => item.id !== chatId)].slice(0, 30);
+      localStorage.setItem(CHAT_INDEX_KEY, JSON.stringify(index));
+      window.dispatchEvent(new CustomEvent("efith:chats-changed"));
+    };
+    save();
+  }, [messages, chatId]);
+
+  useEffect(() => {
+    const onNew = () => { setMessages([]); setMessage(""); setChatId(`chat-${Date.now()}`); };
+    const onOpen = (event: Event) => {
+      const id = (event as CustomEvent<{ id: string }>).detail?.id;
+      if (!id) return;
+      try {
+        const stored = JSON.parse(localStorage.getItem(chatKey(id)) ?? "null") as StoredChat | null;
+        if (stored) { setChatId(stored.id); setMessages(stored.messages); setMessage(""); }
+      } catch {}
+    };
+    window.addEventListener("efith:new-chat", onNew);
+    window.addEventListener("efith:open-chat", onOpen);
+    return () => { window.removeEventListener("efith:new-chat", onNew); window.removeEventListener("efith:open-chat", onOpen); };
+  }, []);
 
   const sendMessage = async () => {
     const content = message.trim();
