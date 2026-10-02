@@ -26,7 +26,7 @@ export function getGoogleOAuthConfig(){const clientId=runtime?.clientId||process
 function client(){const c=getGoogleOAuthConfig();if(!c)throw new Error("Google OAuth is not configured.");return new google.auth.OAuth2(c.clientId,c.clientSecret,c.redirectUri);}
 export function getGoogleOAuthUrl(){const c=client();oauthState=crypto.randomUUID();return c.generateAuthUrl({access_type:"offline",prompt:"consent",scope:scopes,state:oauthState});}
 export async function finishGoogleOAuth(code:string,state:string){if(!state||state!==oauthState)throw new Error("Google OAuth state validation failed.");const c=client();tokens=(await c.getToken(code)).tokens;return tokens;}
-export function isGoogleConnected(){return Boolean(tokens?.access_token||tokens?.refresh_token);}
+export function isGoogleConnected(cookieValue?:string){if(cookieValue){const restored=decryptGoogleTokens(cookieValue);if(restored)tokens=restored;}return Boolean(tokens?.access_token||tokens?.refresh_token);}
 async function auth(cookieValue?:string){if(cookieValue){const restored=decryptGoogleTokens(cookieValue);if(restored)tokens=restored;}if(!isGoogleConnected())throw new Error("Google is not connected. Connect Google in EFITH Settings.");const c=client();c.setCredentials(tokens);if(tokens.expiry_date&&tokens.expiry_date<Date.now()+60000){const r=await c.getAccessToken();if(r.token)tokens={...tokens,access_token:r.token};}c.on("tokens",t=>tokens={...tokens,...t});return c;}
 function confirm(a:Record<string,unknown>){if(a.confirm!==true)throw new Error("Confirmation required. Ask the user to confirm this exact action, then call again with confirm=true.");}
 export async function runGoogleTool(name:string,a:Record<string,unknown>,cookieValue?:string){const c=await auth(cookieValue);
