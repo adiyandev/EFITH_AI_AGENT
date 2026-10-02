@@ -1008,3 +1008,19 @@
     grid-column: auto;
   }
 }
+
+.chat-auth-button {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 13px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--text);
+  color: var(--bg);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  transition: transform .15s ease, opacity .15s ease;
+}
+.chat-auth-button:hover { transform: translateY(-1px); opacity: .9; }
