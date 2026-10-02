@@ -25,7 +25,17 @@ const labels: Record<Provider, string> = {
 };
 
 export function SettingsPage({ settings, onSave, onBack }: Props) {
-  const [draft, setDraft] = useState(settings);
+  const [draft, setDraft] = useState<EfithSettings>({
+    ...settings,
+    apiUrl: settings.apiUrl ?? "",
+    apiKeys: {
+      openai: settings.apiKeys?.openai ?? "",
+      gemini: settings.apiKeys?.gemini ?? "",
+      anthropic: settings.apiKeys?.anthropic ?? "",
+      groq: settings.apiKeys?.groq ?? "",
+    },
+    tavilyApiKey: settings.tavilyApiKey ?? "",
+  });
   const [tab, setTab] = useState<"general" | "connections">("general");
   const [testing, setTesting] = useState(false);
   const [notice, setNotice] = useState<{type:"success"|"error"; text:string}|null>(null);
@@ -47,7 +57,17 @@ export function SettingsPage({ settings, onSave, onBack }: Props) {
   };
 
   useEffect(() => {
-    setDraft(settings);
+    setDraft({
+      ...settings,
+      apiUrl: settings.apiUrl ?? "",
+      apiKeys: {
+        openai: settings.apiKeys?.openai ?? "",
+        gemini: settings.apiKeys?.gemini ?? "",
+        anthropic: settings.apiKeys?.anthropic ?? "",
+        groq: settings.apiKeys?.groq ?? "",
+      },
+      tavilyApiKey: settings.tavilyApiKey ?? "",
+    });
     void loadConnections();
   }, [settings]);
 
@@ -109,7 +129,7 @@ export function SettingsPage({ settings, onSave, onBack }: Props) {
       const response = await fetch(api + "/api/web-search/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ apiKey: draft.tavilyApiKey.trim() }),
+        body: JSON.stringify({ apiKey: (draft.tavilyApiKey ?? "").trim() }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error ?? "Could not configure web search.");
@@ -124,12 +144,12 @@ export function SettingsPage({ settings, onSave, onBack }: Props) {
   const save = async () => {
     const next = {
       ...draft,
-      apiUrl: draft.apiUrl.trim().replace(/\/$/, ""),
+      apiUrl: (draft.apiUrl ?? "").trim().replace(/\/$/, ""),
       apiKeys: {
-        openai: draft.apiKeys.openai.trim(),
-        gemini: draft.apiKeys.gemini.trim(),
-        anthropic: draft.apiKeys.anthropic.trim(),
-        groq: draft.apiKeys.groq.trim(),
+        openai: (draft.apiKeys?.openai ?? "").trim(),
+        gemini: (draft.apiKeys?.gemini ?? "").trim(),
+        anthropic: (draft.apiKeys?.anthropic ?? "").trim(),
+        groq: (draft.apiKeys?.groq ?? "").trim(),
       },
     };
     if (!(await saveTavilyConfig())) return;
