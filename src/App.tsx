@@ -9,6 +9,10 @@ import { SettingsPage } from "./components/settings/SettingsPage";
 
 const SETTINGS_KEY = "efith.settings";
 
+function currentProviderKeys(settings: EfithSettings) {
+  return settings.apiKeys ?? {};
+}
+
 const defaultSettings: EfithSettings = {
   apiUrl: import.meta.env.VITE_API_URL ?? "",
   provider: (import.meta.env.VITE_EFITH_PROVIDER as Provider) ?? "gemini",
@@ -65,14 +69,16 @@ function EfithApp() {
     } catch {}
 
     window.electronAPI.getSettings().then((stored) => {
+      const mergedApiKeys = { ...stored.apiKeys };
+      for (const provider of Object.keys(currentProviderKeys(stored)) as Array<keyof EfithSettings["apiKeys"]>) {
+        const legacyKey = legacy?.apiKeys?.[provider];
+        if (!mergedApiKeys[provider] && legacyKey) mergedApiKeys[provider] = legacyKey;
+      }
+
       setSettings((current) => ({
         ...current,
         ...stored,
-        apiKeys: {
-          ...current.apiKeys,
-          ...(stored.apiKeys ?? {}),
-          ...(legacy?.apiKeys ?? {}),
-        },
+        apiKeys: { ...current.apiKeys, ...mergedApiKeys },
         tavilyApiKey: stored.tavilyApiKey || legacy?.tavilyApiKey || "",
       }));
       setSettingsHydrated(true);
