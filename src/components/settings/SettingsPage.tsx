@@ -70,6 +70,7 @@ export function SettingsPage({ settings, onSave, onBack }: Props) {
       tavilyApiKey: settings.tavilyApiKey ?? "",
     });
     void loadConnections();
+    void loadTavilyConfig();
   }, [settings]);
 
   const api = draft.apiUrl || "";
@@ -156,10 +157,13 @@ export function SettingsPage({ settings, onSave, onBack }: Props) {
         groq: (draft.apiKeys?.groq ?? "").trim(),
       },
     };
-    if (!(await saveTavilyConfig())) return;
+    const tavilySaved = await saveTavilyConfig();
     onSave(next);
     setDraft(next);
-    setNotice({type:"success",text:"Settings saved."});
+    setNotice({
+      type: tavilySaved ? "success" : "error",
+      text: tavilySaved ? "Settings saved." : "Settings saved, but web search could not be updated because the backend is unavailable.",
+    });
   };
 
   const testConnection = async () => {
