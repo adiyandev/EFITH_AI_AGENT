@@ -1200,3 +1200,95 @@
   .settings-page-title h1 { font-size:25px; }
   .settings-page-header { align-items:flex-start; flex-direction:column-reverse; }
 }
+
+
+/* Cleaner live model + settings selectors */
+.settings-select {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.settings-select select {
+  appearance: none;
+  padding-right: 38px !important;
+  cursor: pointer;
+}
+.settings-select > svg:not(.settings-select-spinner) {
+  position: absolute;
+  right: 12px;
+  pointer-events: none;
+  color: var(--muted-2);
+}
+.settings-select-spinner {
+  position: absolute;
+  right: 34px;
+  pointer-events: none;
+  color: var(--muted);
+}
+.settings-page label > span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.settings-page label > span em {
+  font-size: 9px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.settings-page select:hover,
+.settings-page input:hover {
+  border-color: rgba(255,255,255,.14);
+}
+.model-button {
+  min-width: 230px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: var(--surface);
+  box-shadow: 0 4px 18px rgba(0,0,0,.12);
+}
+.model-button:hover {
+  border-color: rgba(255,255,255,.15);
+  background: var(--surface-hover);
+}
+.model-button-icon {
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  border-radius: 9px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  font-size: 9px;
+  font-weight: 800;
+}
+.model-menu {
+  width: min(390px, calc(100vw - 28px));
+  border: 1px solid var(--border);
+  border-radius: 17px;
+  background: var(--surface);
+  box-shadow: 0 22px 70px rgba(0,0,0,.38);
+  overflow: hidden;
+}
+.model-menu-top {
+  padding: 14px 14px 10px;
+}
+.model-search {
+  margin: 0 12px 10px;
+  border-radius: 11px;
+}
+.model-list {
+  max-height: 430px;
+  padding: 0 8px 9px;
+}
+.model-group-title {
+  padding: 9px 7px 6px;
+}
+.model-option {
+  border-radius: 10px;
+  margin: 2px 0;
+}
+.model-option:hover,
+.model-option--active {
+  background: var(--surface-hover);
+}
