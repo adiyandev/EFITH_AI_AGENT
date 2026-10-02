@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Check, ChevronDown, CircleHelp, Github, KeyRound, LoaderCircle, Plus, RefreshCw, Search, ShieldCheck, Sparkles, Trash2, Zap } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, CircleHelp, Download, ExternalLink, Github, KeyRound, LoaderCircle, Plus, RefreshCw, Search, ShieldCheck, Sparkles, Trash2, Zap } from "lucide-react";
 import type { EfithSettings, Provider } from "./SettingsModal";
 
 type McpServer = {
@@ -18,10 +18,11 @@ const fallbackModels: Record<Provider, string[]> = {
   gemini: ["gemini-3.8-flash", "gemini-3-pro-preview"],
   anthropic: ["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-4-5-20251001"],
   groq: ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "llama-3.3-70b-versatile", "llama-3.1-8b-instant"],
+  ollama: ["llama3.2:3b"],
 };
 
 const labels: Record<Provider, string> = {
-  openai: "OpenAI", gemini: "Google Gemini", anthropic: "Anthropic Claude", groq: "Groq",
+  openai: "OpenAI", gemini: "Google Gemini", anthropic: "Anthropic Claude", groq: "Groq", ollama: "Ollama",
 };
 
 export function SettingsPage({ settings, onSave, onBack }: Props) {
@@ -33,6 +34,7 @@ export function SettingsPage({ settings, onSave, onBack }: Props) {
       gemini: settings.apiKeys?.gemini ?? "",
       anthropic: settings.apiKeys?.anthropic ?? "",
       groq: settings.apiKeys?.groq ?? "",
+      ollama: settings.apiKeys?.ollama ?? "",
     },
     tavilyApiKey: settings.tavilyApiKey ?? "",
   });
@@ -50,11 +52,21 @@ export function SettingsPage({ settings, onSave, onBack }: Props) {
   const [availableModels, setAvailableModels] = useState<string[]>(fallbackModels[settings.provider]);
   const [modelsLoading, setModelsLoading] = useState(false);
   const [tavilyConfigured, setTavilyConfigured] = useState(false);
+  const [ollamaModels, setOllamaModels] = useState<string[]>([]);
+  const [ollamaStatus, setOllamaStatus] = useState<"checking"|"running"|"offline">("checking");
+  const [ollamaInstalled, setOllamaInstalled] = useState(false);
+  const [ollamaInstallerReady, setOllamaInstallerReady] = useState(false);
+  const [ollamaBusy, setOllamaBusy] = useState(false);
+  const [ollamaPulling, setOllamaPulling] = useState(false);
+  const [ollamaDeleting, setOllamaDeleting] = useState<string | null>(null);
+  const [ollamaModelInput, setOllamaModelInput] = useState("");
+  const [ollamaProgress, setOllamaProgress] = useState("");
   const providerDescriptions: Record<Provider, string> = {
     openai: "OpenAI provides EFITH’s language model for chat, reasoning, writing, and tool use.",
     gemini: "Google Gemini provides EFITH’s language model with Google’s Gemini model family.",
     anthropic: "Anthropic Claude provides EFITH’s language model for conversation, reasoning, and tool use.",
     groq: "Groq provides fast model inference through its OpenAI-compatible API.",
+    ollama: "Ollama runs AI models locally on this PC. No cloud API key is required.",
   };
 
   useEffect(() => {
@@ -66,16 +78,19 @@ export function SettingsPage({ settings, onSave, onBack }: Props) {
         gemini: settings.apiKeys?.gemini ?? "",
         anthropic: settings.apiKeys?.anthropic ?? "",
         groq: settings.apiKeys?.groq ?? "",
+        ollama: settings.apiKeys?.ollama ?? "",
       },
       tavilyApiKey: settings.tavilyApiKey ?? "",
     });
     void loadConnections();
     void loadTavilyConfig();
+    if (settings.provider === "ollama") void refreshOllama();
   }, [settings]);
 
   const api = draft.apiUrl || "";
 
   const fetchProviderModels = async (provider: Provider, apiKey: string) => {
+    if (provider === "ollama") { await refreshOllama(); return; }
     if (!apiKey.trim()) {
       setAvailableModels(fallbackModels[provider]);
       return;
@@ -104,6 +119,64 @@ export function SettingsPage({ settings, onSave, onBack }: Props) {
     const timer = window.setTimeout(() => void fetchProviderModels(provider, key), 350);
     return () => window.clearTimeout(timer);
   }, [draft.provider, draft.apiKeys, draft.apiUrl]);
+
+  const refreshOllama = async () => {
+    setOllamaStatus("checking");
+    try {
+      if (window.electronAPI?.ollama) {
+        const status = await window.electronAPI.ollama.getStatus();
+        setOllamaInstalled(status.installed);
+        setOllamaStatus(status.running ? "running" : "offline");
+        if (!status.running) { setOllamaModels([]); setAvailableModels(fallbackModels.ollama); return; }
+      }
+      const response = await fetch(`${api}/api/providers/models`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({provider:"ollama"}) });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "Ollama is not running.");
+      const discovered = Array.isArray(payload.models) ? payload.models.filter((model: unknown): model is string => typeof model === "string") : [];
+      setOllamaModels(discovered); setAvailableModels(discovered.length ? discovered : fallbackModels.ollama); setOllamaStatus("running");
+      setDraft(current => current.provider === "ollama" && discovered.length && !discovered.includes(current.model) ? {...current,model:discovered[0]} : current);
+    } catch { setOllamaStatus("offline"); setOllamaModels([]); setAvailableModels(fallbackModels.ollama); }
+  };
+
+  const downloadOllamaInstaller = async () => {
+    if (!window.electronAPI?.ollama || ollamaBusy) return;
+    setOllamaBusy(true); setNotice(null);
+    try { await window.electronAPI.ollama.downloadInstaller(); setOllamaInstallerReady(true); setNotice({type:"success",text:"Ollama installer downloaded. Start the installer to continue."}); }
+    catch(error) { setNotice({type:"error",text:error instanceof Error ? error.message : "Could not download Ollama."}); }
+    finally { setOllamaBusy(false); }
+  };
+
+  const launchOllamaInstaller = async () => {
+    if (!window.electronAPI?.ollama || ollamaBusy) return;
+    setOllamaBusy(true); setNotice(null);
+    try { await window.electronAPI.ollama.launchInstaller(); setNotice({type:"success",text:"Ollama installer launched. Finish installation, then refresh."}); }
+    catch(error) { setNotice({type:"error",text:error instanceof Error ? error.message : "Could not launch Ollama installer."}); }
+    finally { setOllamaBusy(false); }
+  };
+
+  const pullOllamaModel = async () => {
+    const model = ollamaModelInput.trim(); if (!model || ollamaPulling) return;
+    setOllamaPulling(true); setOllamaProgress("Starting download…"); setNotice(null);
+    try {
+      const response = await fetch(`${api}/api/ollama/pull`, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model})});
+      if (!response.ok) { const payload = await response.json().catch(() => ({})); throw new Error(payload.error ?? "Could not download model."); }
+      const reader=response.body?.getReader(); if(!reader) throw new Error("Model download stream is unavailable.");
+      const decoder=new TextDecoder(); let buffer="";
+      while(true){const {done,value}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});const lines=buffer.split("\n");buffer=lines.pop()??"";for(const line of lines){if(!line.trim())continue;try{const event=JSON.parse(line);if(event.total&&event.completed)setOllamaProgress(`${event.status??"Downloading"} · ${Math.round((Number(event.completed)/Number(event.total))*100)}%`);else if(event.status)setOllamaProgress(String(event.status));}catch{}}}
+      setOllamaModelInput("");setOllamaProgress("Model installed.");await refreshOllama();setDraft(current=>({...current,provider:"ollama",model}));setNotice({type:"success",text:`${model} is ready to use.`});
+    } catch(error){setOllamaProgress("");setNotice({type:"error",text:error instanceof Error?error.message:"Could not download model."});}
+    finally{setOllamaPulling(false);}
+  };
+
+  const deleteOllamaModel = async (model: string) => {
+    if (ollamaDeleting) return; setOllamaDeleting(model);
+    try {
+      const response=await fetch(`${api}/api/ollama/models`,{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({model})});
+      const payload=await response.json().catch(() => ({})); if(!response.ok)throw new Error(payload.error??"Could not delete model.");
+      await refreshOllama(); setDraft(current=>current.model===model?{...current,model:ollamaModels.find(item=>item!==model)??fallbackModels.ollama[0]}:current);
+    } catch(error){setNotice({type:"error",text:error instanceof Error?error.message:"Could not delete model."});}
+    finally{setOllamaDeleting(null);}
+  };
 
   const loadConnections = async () => {
     try {
@@ -155,6 +228,7 @@ export function SettingsPage({ settings, onSave, onBack }: Props) {
         gemini: (draft.apiKeys?.gemini ?? "").trim(),
         anthropic: (draft.apiKeys?.anthropic ?? "").trim(),
         groq: (draft.apiKeys?.groq ?? "").trim(),
+        ollama: "",
       },
     };
     const tavilySaved = await saveTavilyConfig();
@@ -168,7 +242,7 @@ export function SettingsPage({ settings, onSave, onBack }: Props) {
 
   const testConnection = async () => {
     const key = draft.apiKeys[draft.provider]?.trim();
-    if (!key) return setNotice({type:"error",text:"Add an API key first."});
+    if (draft.provider !== "ollama" && !key) return setNotice({type:"error",text:"Add an API key first."});
     setTesting(true); setNotice(null);
     try {
       const response = await fetch(`${api}/api/providers/test`, {
@@ -258,10 +332,26 @@ export function SettingsPage({ settings, onSave, onBack }: Props) {
                 <section className="settings-panel settings-panel-wide">
                   <div className="settings-panel-heading"><div className="settings-panel-icon"><Sparkles size={17}/></div><div><h2>AI provider</h2><p>Choose the provider and model EFITH should use.</p></div></div>
                   <div className="settings-form-grid">
-                    <label><span>Provider</span><select value={draft.provider} onChange={e=>{ const provider=e.target.value as Provider; const nextModel=fallbackModels[provider][0] ?? ""; setDraft({...draft,provider,model:nextModel}); void fetchProviderModels(provider,draft.apiKeys[provider]??""); }}>{(Object.keys(labels) as Provider[]).map(p=><option key={p} value={p}>{labels[p]}</option>)}</select><small className="settings-field-help">{providerDescriptions[draft.provider]}</small></label>
+                    <label><span>Provider</span><select value={draft.provider} onChange={e=>{ const provider=e.target.value as Provider; const nextModel=provider === "ollama" ? (ollamaModels[0] ?? fallbackModels.ollama[0]) : (fallbackModels[provider][0] ?? ""); setDraft({...draft,provider,model:nextModel}); void fetchProviderModels(provider,draft.apiKeys[provider]??""); }}>{(Object.keys(labels) as Provider[]).map(p=><option key={p} value={p}>{labels[p]}</option>)}</select><small className="settings-field-help">{providerDescriptions[draft.provider]}</small></label>
                     <label><span>Model <em>{modelsLoading ? "Fetching live models…" : availableModels.length + " available"}</em></span><div className="settings-select"><select value={draft.model} onChange={e=>setDraft({...draft,model:e.target.value})}>{availableModels.map(m=><option key={m}>{m}</option>)}</select><ChevronDown size={15}/>{modelsLoading&&<LoaderCircle size={13} className="settings-select-spinner spin"/>}</div><small className="settings-field-help">EFITH fetches the models exposed by your selected provider.</small></label>
-                    <label className="full"><span>{labels[draft.provider]} API key</span><div className="input-icon"><KeyRound size={15}/><input type="password" value={draft.apiKeys[draft.provider]??""} onChange={e=>setDraft({...draft,apiKeys:{...draft.apiKeys,[draft.provider]:e.target.value}})} placeholder="Paste your API key" autoComplete="off" spellCheck={false}/></div><small className="settings-field-help">Authenticates EFITH with {labels[draft.provider]}. Keep this key private.</small></label>
+                    {draft.provider !== "ollama" && <label className="full"><span>{labels[draft.provider]} API key</span><div className="input-icon"><KeyRound size={15}/><input type="password" value={draft.apiKeys[draft.provider]??""} onChange={e=>setDraft({...draft,apiKeys:{...draft.apiKeys,[draft.provider]:e.target.value}})} placeholder="Paste your API key" autoComplete="off" spellCheck={false}/></div><small className="settings-field-help">Authenticates EFITH with {labels[draft.provider]}. Keep this key private.</small></label>}
                   </div>
+                  {draft.provider === "ollama" && (
+                    <section className="ollama-settings-card">
+                      <div className="ollama-settings-head">
+                        <div className="settings-panel-icon"><Sparkles size={17}/></div>
+                        <div><h3>Local AI</h3><p>{ollamaStatus==="running"?"Ollama is running and ready.":ollamaStatus==="offline"?"Ollama is offline or not installed.":"Checking your local Ollama service…"}</p></div>
+                        <span className={ollamaStatus==="running"?"ollama-status running":"ollama-status"}><i/> {ollamaStatus==="running"?"Running":ollamaStatus==="checking"?"Checking":"Offline"}</span>
+                        <button className="icon-button" onClick={()=>void refreshOllama()} disabled={ollamaStatus==="checking"} aria-label="Refresh Ollama status"><RefreshCw className={ollamaStatus==="checking"?"spin":""} size={15}/></button>
+                      </div>
+                      {!ollamaInstalled && window.electronAPI?.ollama && <div className="ollama-install-row"><div><strong>Ollama is not installed</strong><span>Install the local runtime before downloading models.</span></div><button className="settings-secondary" onClick={()=>void(ollamaInstallerReady?launchOllamaInstaller():downloadOllamaInstaller())} disabled={ollamaBusy}>{ollamaBusy?<LoaderCircle size={15} className="spin"/>:ollamaInstallerReady?<ExternalLink size={15}/>:<Download size={15}/>} {ollamaBusy?"Working…":ollamaInstallerReady?"Install Ollama":"Download Ollama"}</button></div>}
+                      <div className="ollama-models-head"><strong>Installed models</strong><span>{ollamaModels.length} local model{ollamaModels.length===1?"":"s"}</span></div>
+                      <div className="ollama-models">{ollamaModels.length?ollamaModels.map(model=><div className={draft.model===model?"ollama-model active":"ollama-model"} key={model} onClick={()=>setDraft({...draft,model})}><span><b>{model}</b>{draft.model===model&&<em>Selected</em>}</span><button className="icon-button" onClick={e=>{e.stopPropagation();void deleteOllamaModel(model)}} disabled={ollamaDeleting===model} aria-label={"Delete "+model}>{ollamaDeleting===model?<LoaderCircle size={14} className="spin"/>:<Trash2 size={14}/>}</button></div>):<div className="ollama-empty">No local models installed. Enter a model name below to download one.</div>}</div>
+                      <div className="ollama-download"><input value={ollamaModelInput} onChange={e=>setOllamaModelInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")void pullOllamaModel()}} placeholder="Model name, e.g. qwen3:8b"/><button className="settings-primary" onClick={()=>void pullOllamaModel()} disabled={ollamaPulling||!ollamaModelInput.trim()}>{ollamaPulling?<LoaderCircle size={15} className="spin"/>:<Download size={15}/>} {ollamaPulling?"Downloading…":"Download model"}</button></div>
+                      {ollamaProgress&&<div className="ollama-progress"><span>{ollamaProgress}</span>{ollamaPulling&&<span className="ollama-progress-pulse"/>}</div>}
+                    </section>
+                  )}
+
                   <div className="settings-integration-card">
                     <div className="settings-integration-icon"><Search size={16}/></div>
                     <div className="settings-integration-copy"><div><h3>Web search</h3><span>{tavilyConfigured ? "Connected" : "Optional"}</span></div><p>Tavily gives EFITH live web search results so it can look up current information instead of relying only on built-in model knowledge.</p></div>
