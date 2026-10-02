@@ -1,8 +1,28 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import "dotenv/config";
+import { McpManager } from "./mcp/manager.js";
+import type { McpServerConfig } from "./mcp/types.js";
+import { listConnectors } from "./connectors/registry.js";
 
 const app = Fastify({ logger: true });
+const mcp = new McpManager();
+
+function loadMcpServers(): McpServerConfig[] {
+  const raw = process.env.MCP_SERVERS;
+  if (!raw) return [];
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) throw new Error("MCP_SERVERS must be a JSON array.");
+    return parsed as McpServerConfig[];
+  } catch (error) {
+    app.log.error(error, "Invalid MCP_SERVERS configuration");
+    return [];
+  }
+}
+
+const configuredMcpServers = loadMcpServers();
 
 await app.register(cors, { origin: true });
 
@@ -196,6 +216,84 @@ async function testProvider(provider: ProviderName, model: string, apiKey: strin
     apiKey,
   );
 }
+
+app.get("/api/mcp/servers", async () => {
+  return {
+    servers: configuredMcpServers.map((server) => ({
+      id: server.id,
+      name: server.name,
+      transport: server.transport,
+      url: server.transport === "streamable-http" ? server.url : undefined,
+      connected: mcp.listConnections().some((connection) => connection.id === server.id),
+    })),
+  };
+});
+
+app.post<{ Body: { id?: string } }>("/api/mcp/connect", async (request, reply) => {
+  const id = request.body?.id;
+  const config = configuredMcpServers.find((server) => server.id === id);
+
+  if (!config) {
+    return reply.code(404).send({ error: "Configured MCP server not found." });
+  }
+
+  try {
+    return await mcp.connect(config);
+  } catch (error) {
+    request.log.error(error, "MCP connection failed");
+    return reply.code(502).send({
+      error: error instanceof Error ? error.message : "MCP connection failed.",
+    });
+  }
+});
+
+app.post<{ Body: { id?: string } }>("/api/mcp/disconnect", async (request, reply) => {
+  const id = request.body?.id;
+  if (!id) return reply.code(400).send({ error: "MCP server id is required." });
+
+  try {
+    const disconnected = await mcp.disconnect(id);
+    return { ok: disconnected };
+  } catch (error) {
+    return reply.code(500).send({
+      error: error instanceof Error ? error.message : "MCP disconnect failed.",
+    });
+  }
+});
+
+app.get<{ Params: { id: string } }>("/api/mcp/servers/:id/tools", async (request, reply) => {
+  try {
+    return { tools: await mcp.listTools(request.params.id) };
+  } catch (error) {
+    return reply.code(404).send({
+      error: error instanceof Error ? error.message : "Unable to list MCP tools.",
+    });
+  }
+});
+
+app.post<{ Body: { id?: string; tool?: string; arguments?: Record<string, unknown> } }>(
+  "/api/mcp/tools/call",
+  async (request, reply) => {
+    const { id, tool, arguments: arguments_ } = request.body ?? {};
+
+    if (!id || !tool) {
+      return reply.code(400).send({ error: "MCP server id and tool name are required." });
+    }
+
+    try {
+      return await mcp.callTool(id, tool, arguments_ ?? {});
+    } catch (error) {
+      request.log.error(error, "MCP tool call failed");
+      return reply.code(502).send({
+        error: error instanceof Error ? error.message : "MCP tool call failed.",
+      });
+    }
+  },
+);
+
+app.get("/api/connectors", async () => {
+  return { connectors: listConnectors() };
+});
 
 app.get("/api/health", async () => {
   const providers = (Object.keys(PROVIDERS) as ProviderName[]).map((provider) => {
