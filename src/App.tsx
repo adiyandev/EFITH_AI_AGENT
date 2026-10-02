@@ -58,7 +58,8 @@ function EfithApp() {
         <TopBar
           sidebarOpen={sidebarOpen}
           onOpenSidebar={() => setSidebarOpen(true)}
-          model={settings.model}
+          settings={settings}
+          onChange={(changes) => setSettings((current) => ({ ...current, ...changes }))}
         />
         <ChatView settings={settings} />
       </section>
