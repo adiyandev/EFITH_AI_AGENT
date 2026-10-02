@@ -179,7 +179,7 @@ export function SettingsPage({ settings, onSave, onBack }: Props) {
                   <div className="settings-form-grid">
                     <label><span>GitHub Client ID</span><input value={githubId} onChange={e=>setGithubId(e.target.value)} placeholder="OAuth App Client ID" autoComplete="off"/></label>
                     <label><span>GitHub Client Secret</span><input type="password" value={githubSecret} onChange={e=>setGithubSecret(e.target.value)} placeholder={githubConfigured?"Already saved — enter to replace":"OAuth App Client Secret"} autoComplete="new-password"/></label>
-                    <label className="full"><span>OAuth callback URL</span><div className="readonly-field">{window.location.origin}/api/mcp/oauth/callback/github</div></label>
+                    <label className="full"><span>OAuth callback URL</span><div className="readonly-field">{(draft.apiUrl || "http://127.0.0.1:8787").replace(/\/$/, "")}/api/mcp/oauth/callback/github</div></label>
                   </div>
                   <div className="settings-row-actions"><button className="settings-primary" onClick={saveGithub} disabled={savingGithub||!githubId.trim()||!githubSecret.trim()}>{savingGithub?<LoaderCircle size={15} className="spin"/>:<KeyRound size={15}/>} {savingGithub?"Saving…":githubConfigured?"Replace credentials":"Save credentials"}</button>{githubConfigured&&<button className="settings-secondary" onClick={connectGithub}>Sign in with GitHub <ArrowLeft size={14} style={{transform:"rotate(180deg)"}}/></button>}</div>
                   <div className="settings-security warning"><ShieldCheck size={14}/><span>The GitHub client secret is sent to your backend and is not saved in browser localStorage.</span></div>
