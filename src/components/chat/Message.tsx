@@ -26,7 +26,7 @@ export function Message({ role, content, showTools = false, auth }: MessageProps
         <p>{content}</p>
         {auth && (
           <button className="chat-auth-button" onClick={() => {
-            const target = auth.authUrl || `/mcp/auth/${encodeURIComponent(auth.mcpServerId ?? "")}`;
+            const target = auth.authUrl || `${import.meta.env.BASE_URL}mcp/auth/${encodeURIComponent(auth.mcpServerId ?? "")}`;
             window.location.href = target;
           }}>
             Sign in with {auth.providerName ?? "this provider"} →
