@@ -27,8 +27,28 @@ let configuredMcpServers = loadMcpServers();
 await app.register(cors, { origin: true });
 
 type ChatMessage = {
-  role: "system" | "user" | "assistant";
-  content: string;
+  role: "system" | "user" | "assistant" | "tool";
+  content: string | null;
+  tool_call_id?: string;
+  tool_calls?: ProviderToolCall[];
+  name?: string;
+};
+
+type ProviderToolCall = {
+  id: string;
+  type: "function";
+  function: { name: string; arguments: string };
+};
+
+type AgentTool = {
+  type: "function";
+  function: {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  };
+  mcpServerId: string;
+  mcpToolName: string;
 };
 
 type ProviderName = "openai" | "gemini" | "anthropic" | "groq";
@@ -151,6 +171,7 @@ async function callOpenAICompatible(
   messages: ChatMessage[],
   model: string,
   apiKey: string,
+  tools: AgentTool[] = [],
 ) {
   const config = getProviderConfig(provider, apiKey);
 
@@ -171,7 +192,10 @@ async function callOpenAICompatible(
           model,
           messages,
           temperature: 0.7,
-          ...(provider === "groq" ? { tool_choice: "auto" } : {}),
+          ...(tools.length ? {
+            tools: tools.map(({ mcpServerId: _s, mcpToolName: _t, ...tool }) => tool),
+            tool_choice: "auto",
+          } : {}),
         }),
       });
     } catch (error) {
@@ -195,7 +219,7 @@ async function callOpenAICompatible(
     }
 
     if (response.ok) {
-      return payload?.choices?.[0]?.message?.content;
+      return payload?.choices?.[0]?.message;
     }
 
     const transient = response.status === 408 || response.status === 429 || response.status >= 500;
@@ -248,6 +272,51 @@ async function callAnthropic(messages: ChatMessage[], model: string, apiKey: str
 
   const textBlock = payload?.content?.find?.((item: { type?: string }) => item.type === "text");
   return textBlock?.text;
+}
+
+async function getAgentTools(): Promise<AgentTool[]> {
+  const tools: AgentTool[] = [];
+  for (const server of configuredMcpServers) {
+    try {
+      if (!mcp.listConnections().some((connection) => connection.id === server.id)) await mcp.connect(server);
+      for (const tool of await mcp.listTools(server.id)) {
+        tools.push({
+          type: "function",
+          function: {
+            name: "mcp__" + server.id + "__" + tool.name,
+            description: tool.description ?? ("Use " + tool.name + " from " + server.name + "."),
+            parameters: (tool.inputSchema as Record<string, unknown>) ?? { type: "object", properties: {} },
+          },
+          mcpServerId: server.id,
+          mcpToolName: tool.name,
+        });
+      }
+    } catch (error) {
+      app.log.warn({ server: server.id, error }, "Unable to load MCP tools");
+    }
+  }
+  return tools;
+}
+
+async function runMcpTool(tool: AgentTool, rawArguments: string) {
+  const args = rawArguments ? JSON.parse(rawArguments) : {};
+  try {
+    return await mcp.callTool(tool.mcpServerId, tool.mcpToolName, args);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "MCP tool call failed.";
+    const server = configuredMcpServers.find((item) => item.id === tool.mcpServerId);
+    if (/unauthorized|authentication|not authenticated|401/i.test(message)) {
+      const authError = new Error(message);
+      (authError as any).mcpAuth = {
+        requiresAuth: true,
+        authUrl: server?.authUrl,
+        providerName: server?.providerName ?? server?.name,
+        mcpServerId: tool.mcpServerId,
+      };
+      throw authError;
+    }
+    throw error;
+  }
 }
 
 async function testProvider(provider: ProviderName, model: string, apiKey: string) {
@@ -458,27 +527,37 @@ app.post<{ Body: ChatRequest }>("/api/chat", async (request, reply) => {
   }
 
   try {
-    const content =
-      provider === "anthropic"
-        ? await callAnthropic(agentMessages, model, config.apiKey)
-        : await callOpenAICompatible(provider, agentMessages, model, config.apiKey);
-
-    if (typeof content !== "string") {
-      return reply.code(502).send({ error: `${provider} returned no text content.` });
+    const tools = await getAgentTools();
+    let workingMessages: ChatMessage[] = agentMessages;
+    for (let turn = 0; turn < 6; turn += 1) {
+      const result: any = provider === "anthropic"
+        ? await callAnthropic(workingMessages, model, config.apiKey, tools)
+        : await callOpenAICompatible(provider, workingMessages, model, config.apiKey, tools);
+      const calls: ProviderToolCall[] = result?.tool_calls ?? [];
+      if (!calls.length) {
+        const text = typeof result === "string" ? result : result?.content;
+        if (typeof text !== "string") return reply.code(502).send({ error: provider + " returned no text content." });
+        return { provider, model, message: { role: "assistant", content: text } };
+      }
+      workingMessages.push({ role: "assistant", content: result.content ?? "", tool_calls: calls });
+      for (const call of calls) {
+        const tool = tools.find((item) => item.function.name === call.function.name);
+        if (!tool) continue;
+        try {
+          const toolResult = await runMcpTool(tool, call.function.arguments);
+          workingMessages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(toolResult) });
+        } catch (error) {
+          const auth = (error as any)?.mcpAuth;
+          if (auth) return reply.code(401).send({ error: error instanceof Error ? error.message : "Authentication required.", ...auth });
+          workingMessages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ error: error instanceof Error ? error.message : "MCP tool failed." }) });
+        }
+      }
     }
-
-    return {
-      provider,
-      model,
-      message: { role: "assistant", content },
-    };
+    return reply.code(502).send({ error: "EFITH reached the tool-call limit for this request." });
   } catch (error) {
     request.log.error(error, "Provider request failed");
-    return reply.code(502).send({
-      error: error instanceof Error ? error.message : "AI provider request failed.",
-    });
-  }
-});
+    return reply.code(502).send({ error: error instanceof Error ? error.message : "AI provider request failed." });
+  }});
 
 const port = Number(process.env.PORT ?? 8787);
 const host = process.env.HOST ?? "0.0.0.0";
