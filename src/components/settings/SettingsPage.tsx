@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Check, ChevronDown, CircleHelp, Github, KeyRound, LoaderCircle, Plus, RefreshCw, ShieldCheck, Sparkles, Trash2, Zap } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, CircleHelp, Github, KeyRound, LoaderCircle, Plus, RefreshCw, Search, ShieldCheck, Sparkles, Trash2, Zap } from "lucide-react";
 import type { EfithSettings, Provider } from "./SettingsModal";
 
 type McpServer = {
@@ -37,7 +37,7 @@ export function SettingsPage({ settings, onSave, onBack }: Props) {
   const [mcpForm, setMcpForm] = useState({id:"",name:"",url:"",providerName:"",authUrl:"",requiresAuth:true});
   const [addingMcp, setAddingMcp] = useState(false);
   const [availableModels, setAvailableModels] = useState<string[]>(fallbackModels[settings.provider]);
-  const [modelsLoading, setModelsLoading] = useState(false);
+  const [modelsLoading, setModelsLoading] = useState(false);\n  const [tavilyConfigured, setTavilyConfigured] = useState(false);\n  const providerDescriptions: Record<Provider, string> = {\n    openai: "OpenAI provides EFITH’s language model for chat, reasoning, writing, and tool use.",\n    gemini: "Google Gemini provides EFITH’s language model with Google’s Gemini model family.",\n    anthropic: "Anthropic Claude provides EFITH’s language model for conversation, reasoning, and tool use.",\n    groq: "Groq provides fast model inference through its OpenAI-compatible API.",\n  };
 
   useEffect(() => {
     setDraft(settings);
@@ -89,7 +89,32 @@ export function SettingsPage({ settings, onSave, onBack }: Props) {
     } catch {}
   };
 
-  const save = () => {
+  const loadTavilyConfig = async () => {
+    try {
+      const response = await fetch(api + "/api/web-search/config");
+      const payload = await response.json().catch(() => ({}));
+      if (response.ok) setTavilyConfigured(Boolean(payload.configured));
+    } catch {}
+  };
+
+  const saveTavilyConfig = async () => {
+    try {
+      const response = await fetch(api + "/api/web-search/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey: draft.tavilyApiKey.trim() }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "Could not configure web search.");
+      setTavilyConfigured(Boolean(payload.configured));
+      return true;
+    } catch (error) {
+      setNotice({ type: "error", text: error instanceof Error ? error.message : "Could not configure web search." });
+      return false;
+    }
+  };
+
+  const save = async () => {
     const next = {
       ...draft,
       apiUrl: draft.apiUrl.trim().replace(/\/$/, ""),
@@ -100,7 +125,7 @@ export function SettingsPage({ settings, onSave, onBack }: Props) {
         groq: draft.apiKeys.groq.trim(),
       },
     };
-    onSave(next);
+    if (!(await saveTavilyConfig())) return;\n    onSave(next);
     setDraft(next);
     setNotice({type:"success",text:"Settings saved."});
   };
@@ -186,10 +211,15 @@ export function SettingsPage({ settings, onSave, onBack }: Props) {
                 <section className="settings-panel settings-panel-wide">
                   <div className="settings-panel-heading"><div className="settings-panel-icon"><Sparkles size={17}/></div><div><h2>AI provider</h2><p>Choose the provider and model EFITH should use.</p></div></div>
                   <div className="settings-form-grid">
-                    <label><span>Provider</span><select value={draft.provider} onChange={e=>{ const provider=e.target.value as Provider; const nextModel=fallbackModels[provider][0] ?? ""; setDraft({...draft,provider,model:nextModel}); void fetchProviderModels(provider,draft.apiKeys[provider]??""); }}>{(Object.keys(labels) as Provider[]).map(p=><option key={p} value={p}>{labels[p]}</option>)}</select></label>
-                    <label><span>Model <em>{modelsLoading ? "Fetching live models…" : `${availableModels.length} available`}</em></span><div className="settings-select"><select value={draft.model} onChange={e=>setDraft({...draft,model:e.target.value})}>{availableModels.map(m=><option key={m}>{m}</option>)}</select><ChevronDown size={15}/>{modelsLoading&&<LoaderCircle size={13} className="settings-select-spinner spin"/>}</div></label>
-                    <label className="full"><span>{labels[draft.provider]} API key</span><div className="input-icon"><KeyRound size={15}/><input type="password" value={draft.apiKeys[draft.provider]??""} onChange={e=>setDraft({...draft,apiKeys:{...draft.apiKeys,[draft.provider]:e.target.value}})} placeholder="Paste your API key" autoComplete="off" spellCheck={false}/></div></label>
+                    <label><span>Provider</span><select value={draft.provider} onChange={e=>{ const provider=e.target.value as Provider; const nextModel=fallbackModels[provider][0] ?? ""; setDraft({...draft,provider,model:nextModel}); void fetchProviderModels(provider,draft.apiKeys[provider]??""); }}>{(Object.keys(labels) as Provider[]).map(p=><option key={p} value={p}>{labels[p]}</option>)}</select><small className="settings-field-help">{providerDescriptions[draft.provider]}</small></label>
+                    <label><span>Model <em>{modelsLoading ? "Fetching live models…" : availableModels.length + " available"}</em></span><div className="settings-select"><select value={draft.model} onChange={e=>setDraft({...draft,model:e.target.value})}>{availableModels.map(m=><option key={m}>{m}</option>)}</select><ChevronDown size={15}/>{modelsLoading&&<LoaderCircle size={13} className="settings-select-spinner spin"/>}</div><small className="settings-field-help">EFITH fetches the models exposed by your selected provider.</small></label>
+                    <label className="full"><span>{labels[draft.provider]} API key</span><div className="input-icon"><KeyRound size={15}/><input type="password" value={draft.apiKeys[draft.provider]??""} onChange={e=>setDraft({...draft,apiKeys:{...draft.apiKeys,[draft.provider]:e.target.value}})} placeholder="Paste your API key" autoComplete="off" spellCheck={false}/></div><small className="settings-field-help">Authenticates EFITH with {labels[draft.provider]}. Keep this key private.</small></label>
                   </div>
+                  <div className="settings-integration-card">
+                    <div className="settings-integration-icon"><Search size={16}/></div>
+                    <div className="settings-integration-copy"><div><h3>Web search</h3><span>{tavilyConfigured ? "Connected" : "Optional"}</span></div><p>Tavily gives EFITH live web search results so it can look up current information instead of relying only on built-in model knowledge.</p></div>
+                    <label className="settings-integration-key"><span>Tavily API key</span><input type="password" value={draft.tavilyApiKey} onChange={e=>setDraft({...draft,tavilyApiKey:e.target.value})} placeholder="tvly-..." autoComplete="off" spellCheck={false}/></label>
+                  </div></div>
                   <div className="settings-row-actions"><button className="settings-primary" onClick={testConnection} disabled={testing}>{testing?<LoaderCircle size={15} className="spin"/>:<Check size={15}/>} {testing?"Testing…":"Test connection"}</button></div>
                 </section>
 
