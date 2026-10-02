@@ -367,6 +367,17 @@ app.post<{ Body: { clientId?: string; clientSecret?: string } }>("/api/mcp/githu
   }
 
   runtimeGitHubOAuth = { clientId, clientSecret };
+  mcp.configureGitHubOAuth(clientId, clientSecret);
+  if (!configuredMcpServers.some((server) => server.id === "github")) {
+    configuredMcpServers.push({
+      id: "github",
+      name: "GitHub",
+      transport: "streamable-http",
+      url: "https://api.githubcopilot.com/mcp/",
+      providerName: "GitHub",
+      requiresAuth: true,
+    });
+  }
   return {
     configured: true,
     callbackUrl: process.env.GITHUB_MCP_OAUTH_REDIRECT_URI?.trim() ||
@@ -622,6 +633,18 @@ app.post<{ Body: ChatRequest }>("/api/chat", async (request, reply) => {
 
   try {
     const tools = await getAgentTools();
+    const latestUserText = [...messages].reverse().find((item) => item.role === "user")?.content ?? "";
+    const githubServer = configuredMcpServers.find((server) => server.id === "github");
+    const githubConnected = mcp.listConnections().some((connection) => connection.id === "github");
+    if (githubServer && !githubConnected && /\\b(github|git hub|repository|repo|pull request|pull requests|issue|issues|commit|branch)\\b/i.test(latestUserText)) {
+      return reply.code(401).send({
+        error: "GitHub needs to be connected before EFITH can access it.",
+        requiresAuth: true,
+        providerName: "GitHub",
+        mcpServerId: "github",
+        authUrl: "/mcp/auth/github",
+      });
+    }
     let workingMessages: ChatMessage[] = agentMessages;
     for (let turn = 0; turn < 6; turn += 1) {
       const result: any = provider === "anthropic"
