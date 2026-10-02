@@ -358,7 +358,7 @@ app.post<{ Body: { id?: string; name?: string; url?: string; authUrl?: string; p
     return reply.code(400).send({ error: "MCP id, name, and URL are required." });
   }
 
-  if (!/^https?:\\/\\//i.test(url)) {
+  if (!/^https?:\/\//i.test(url)) {
     return reply.code(400).send({ error: "Only HTTP(S) MCP servers can be added from Settings." });
   }
 
