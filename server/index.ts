@@ -336,6 +336,56 @@ async function testProvider(provider: ProviderName, model: string, apiKey: strin
   );
 }
 
+app.get<{ Params: { id: string } }>("/api/mcp/oauth/start/:id", async (request, reply) => {
+  const config = configuredMcpServers.find((server) => server.id === request.params.id);
+
+  if (!config) {
+    return reply.code(404).send({ error: "Configured MCP server not found." });
+  }
+
+  try {
+    const result = await mcp.beginOAuth(config);
+    if (result.authorizationUrl) {
+      return { authorizationUrl: result.authorizationUrl };
+    }
+
+    return { connected: true };
+  } catch (error) {
+    request.log.error(error, "MCP OAuth start failed");
+    return reply.code(502).send({
+      error: error instanceof Error ? error.message : "MCP OAuth start failed.",
+    });
+  }
+});
+
+app.get<{ Params: { id: string } }>("/api/mcp/oauth/callback/:id", async (request, reply) => {
+  const config = configuredMcpServers.find((server) => server.id === request.params.id);
+
+  if (!config) {
+    return reply.code(404).type("text/html").send("<h1>MCP server not found</h1>");
+  }
+
+  try {
+    const params = new URLSearchParams(
+      Object.entries(request.query as Record<string, unknown>)
+        .filter(([, value]) => typeof value === "string")
+        .map(([key, value]) => [key, value as string]),
+    );
+
+    if (params.get("error")) {
+      return reply.code(400).type("text/html").send("<h1>GitHub authorization was not completed.</h1><p>You can close this window and return to EFITH.</p>");
+    }
+
+    await mcp.finishOAuth(config, params);
+
+    const webUrl = (process.env.EFITH_WEB_URL ?? "http://localhost:5173/EFITH_AI_AGENT").replace(//$/, "");
+    return reply.redirect(302, webUrl + "/mcp/auth/" + encodeURIComponent(config.id) + "?status=connected");
+  } catch (error) {
+    request.log.error(error, "MCP OAuth callback failed");
+    return reply.code(400).type("text/html").send("<h1>GitHub authorization failed</h1><p>EFITH could not complete the MCP authorization. Check the backend logs for details.</p>");
+  }
+});
+
 app.get("/api/mcp/servers", async () => {
   return {
     servers: configuredMcpServers.map((server) => ({
