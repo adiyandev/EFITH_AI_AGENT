@@ -4,6 +4,7 @@ import { TopBar } from "./components/layout/TopBar";
 import { ChatView } from "./components/chat/ChatView";
 import { EfithSettings, SettingsModal, Provider } from "./components/settings/SettingsModal";
 import "./styles/app.css";
+import { McpAuthPage } from "./components/settings/McpAuthPage";
 
 const SETTINGS_KEY = "efith.settings";
 
@@ -20,6 +21,7 @@ const defaultSettings: EfithSettings = {
 };
 
 export default function App() {
+  if (window.location.pathname.includes("/mcp/auth/")) return <McpAuthPage />;
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<EfithSettings>(() => {
