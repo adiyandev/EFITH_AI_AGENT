@@ -528,3 +528,128 @@
     max-width: 88%;
   }
 }
+
+
+.settings-mcp-section {
+  border-top: 1px solid var(--border);
+}
+
+.settings-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--muted);
+}
+
+.settings-section-title span {
+  display: block;
+  color: var(--muted-2);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.settings-section-title h3 {
+  margin: 3px 0 0;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.mcp-server-list {
+  display: grid;
+  gap: 8px;
+}
+
+.mcp-server-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+}
+
+.mcp-server-icon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--surface-hover);
+  color: var(--muted);
+}
+
+.mcp-server-info {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 3px;
+}
+
+.mcp-server-info strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mcp-server-info span {
+  color: var(--muted-2);
+  font-size: 10px;
+}
+
+.mcp-auth-button {
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 7px 9px;
+  background: var(--text);
+  color: var(--bg);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.mcp-add-form {
+  display: grid;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.mcp-form-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.mcp-form-grid input {
+  width: 100%;
+}
+
+.mcp-auth-toggle {
+  display: flex !important;
+  grid-template-columns: none !important;
+  grid-auto-flow: column;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 7px !important;
+}
+
+.mcp-auth-toggle input {
+  width: auto;
+}
+
+@media (max-width: 700px) {
+  .mcp-server-card {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .mcp-auth-button {
+    margin-left: 42px;
+  }
+}
