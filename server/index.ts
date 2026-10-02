@@ -358,6 +358,28 @@ async function testProvider(provider: ProviderName, model: string, apiKey: strin
   );
 }
 
+app.post<{ Body: { clientId?: string; clientSecret?: string } }>("/api/mcp/github/oauth-config", async (request, reply) => {
+  const clientId = request.body?.clientId?.trim();
+  const clientSecret = request.body?.clientSecret?.trim();
+
+  if (!clientId || !clientSecret) {
+    return reply.code(400).send({ error: "GitHub Client ID and Client Secret are required." });
+  }
+
+  runtimeGitHubOAuth = { clientId, clientSecret };
+  return {
+    configured: true,
+    callbackUrl: process.env.GITHUB_MCP_OAUTH_REDIRECT_URI?.trim() ||
+      "http://127.0.0.1:8787/api/mcp/oauth/callback/github",
+  };
+});
+
+app.get("/api/mcp/github/oauth-config", async () => ({
+  configured: Boolean(runtimeGitHubOAuth || (process.env.GITHUB_MCP_CLIENT_ID && process.env.GITHUB_MCP_CLIENT_SECRET)),
+  callbackUrl: process.env.GITHUB_MCP_OAUTH_REDIRECT_URI?.trim() ||
+    "http://127.0.0.1:8787/api/mcp/oauth/callback/github",
+}));
+
 app.get<{ Params: { id: string } }>("/api/mcp/oauth/start/:id", async (request, reply) => {
   const config = configuredMcpServers.find((server) => server.id === request.params.id);
 
