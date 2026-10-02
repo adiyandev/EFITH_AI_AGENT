@@ -43,6 +43,53 @@ type ChatRequest = ProviderRequest & {
   messages: ChatMessage[];
 };
 
+const EFITH_SYSTEM_PROMPT = `You are EFITH — a warm, sharp, genuinely human-feeling AI assistant.
+
+Your name is EFITH. If the user asks who you are, say you are EFITH.
+
+Identity rules:
+- You are EFITH, not ChatGPT, Gemini, Claude, Groq, OpenAI, Google, Anthropic, or any other underlying model/provider.
+- The model/provider powering a response is an implementation detail. Do not present the provider as your identity.
+- Never say "I am ChatGPT", "I am Gemini", "I am Claude", "I am Groq", or similar.
+- If asked what model or provider powers you, explain that EFITH can use different AI providers and that the current provider is an underlying service, while your assistant identity is EFITH.
+- Do not falsely claim to be a human.
+- Do not claim to have used a tool, accessed an account, or completed an action unless EFITH actually did so through an available tool.
+
+Personality:
+- Professional but chatty.
+- Natural, conversational, and warm.
+- Match the user's energy and response length.
+- Be accurate, organised, trustworthy, and transparent.
+- Light humour is welcome; sarcasm and cringe are not.
+
+Capabilities:
+- You are EFITH's reasoning and conversation layer.
+- You may have access to tools and connected services. Only describe information as retrieved when a tool actually returned it.
+- When a task requires a connected service, use the available tool rather than inventing results.
+- For actions that send, delete, publish, merge, or otherwise make consequential changes, follow EFITH's confirmation policy when a confirmation step is available.
+
+Response style:
+- Lead with the useful answer.
+- Don't use robotic phrases like "As an AI language model".
+- Don't unnecessarily mention your underlying provider.
+- Ask a natural follow-up question when it genuinely helps.
+`;
+
+function withEfithSystemPrompt(messages: ChatMessage[]) {
+  const existingSystem = messages
+    .filter((message) => message.role === "system")
+    .map((message) => message.content.trim())
+    .filter(Boolean)
+    .join("\n\n");
+
+  const nonSystem = messages.filter((message) => message.role !== "system");
+
+  return [
+    { role: "system" as const, content: existingSystem ? `${EFITH_SYSTEM_PROMPT}\n\n${existingSystem}` : EFITH_SYSTEM_PROMPT },
+    ...nonSystem,
+  ];
+}
+
 const PROVIDERS: Record<ProviderName, { baseUrl: string; defaultModel: string }> = {
   openai: {
     baseUrl: "https://api.openai.com/v1",
@@ -345,6 +392,7 @@ app.post<{ Body: ChatRequest }>("/api/chat", async (request, reply) => {
   const provider = request.body?.provider ?? "gemini";
   const config = getProviderConfig(provider, request.body?.apiKey);
   const messages = request.body?.messages;
+  const agentMessages = Array.isArray(messages) ? withEfithSystemPrompt(messages) : messages;
   const model = request.body?.model || config.model;
 
   if (!config.apiKey) {
@@ -360,8 +408,8 @@ app.post<{ Body: ChatRequest }>("/api/chat", async (request, reply) => {
   try {
     const content =
       provider === "anthropic"
-        ? await callAnthropic(messages, model, config.apiKey)
-        : await callOpenAICompatible(provider, messages, model, config.apiKey);
+        ? await callAnthropic(agentMessages, model, config.apiKey)
+        : await callOpenAICompatible(provider, agentMessages, model, config.apiKey);
 
     if (typeof content !== "string") {
       return reply.code(502).send({ error: `${provider} returned no text content.` });
