@@ -61,6 +61,8 @@ export function SettingsPage({ settings, onSave, onBack }: Props) {
   const [ollamaDeleting, setOllamaDeleting] = useState<string | null>(null);
   const [ollamaModelInput, setOllamaModelInput] = useState("");
   const [ollamaProgress, setOllamaProgress] = useState("");
+  const [ollamaModelsPath, setOllamaModelsPath] = useState("");
+  const [ollamaPathBusy, setOllamaPathBusy] = useState(false);
   const providerDescriptions: Record<Provider, string> = {
     openai: "OpenAI provides EFITH’s language model for chat, reasoning, writing, and tool use.",
     gemini: "Google Gemini provides EFITH’s language model with Google’s Gemini model family.",
@@ -126,6 +128,7 @@ export function SettingsPage({ settings, onSave, onBack }: Props) {
       if (window.electronAPI?.ollama) {
         const status = await window.electronAPI.ollama.getStatus();
         setOllamaInstalled(status.installed);
+        setOllamaModelsPath(status.modelsPath ?? "");
         setOllamaStatus(status.running ? "running" : "offline");
         if (!status.running) { setOllamaModels([]); setAvailableModels(fallbackModels.ollama); return; }
       }
@@ -136,6 +139,28 @@ export function SettingsPage({ settings, onSave, onBack }: Props) {
       setOllamaModels(discovered); setAvailableModels(discovered.length ? discovered : fallbackModels.ollama); setOllamaStatus("running");
       setDraft(current => current.provider === "ollama" && discovered.length && !discovered.includes(current.model) ? {...current,model:discovered[0]} : current);
     } catch { setOllamaStatus("offline"); setOllamaModels([]); setAvailableModels(fallbackModels.ollama); }
+  };
+
+  const chooseOllamaModelsDirectory = async () => {
+    if (!window.electronAPI?.ollama || ollamaPathBusy) return;
+    setOllamaPathBusy(true);
+    setNotice(null);
+    try {
+      const result = await window.electronAPI.ollama.chooseModelsDirectory();
+      if (result.canceled) return;
+      setOllamaModelsPath(result.path ?? "");
+      setNotice({
+        type: "success",
+        text: "Model storage location saved. Restart Ollama before downloading new models.",
+      });
+    } catch (error) {
+      setNotice({
+        type: "error",
+        text: error instanceof Error ? error.message : "Could not change the Ollama model location.",
+      });
+    } finally {
+      setOllamaPathBusy(false);
+    }
   };
 
   const downloadOllamaInstaller = async () => {
@@ -345,6 +370,17 @@ export function SettingsPage({ settings, onSave, onBack }: Props) {
                         <button className="icon-button" onClick={()=>void refreshOllama()} disabled={ollamaStatus==="checking"} aria-label="Refresh Ollama status"><RefreshCw className={ollamaStatus==="checking"?"spin":""} size={15}/></button>
                       </div>
                       {!ollamaInstalled && window.electronAPI?.ollama && <div className="ollama-install-row"><div><strong>Ollama is not installed</strong><span>Install the local runtime before downloading models.</span></div><button className="settings-secondary" onClick={()=>void(ollamaInstallerReady?launchOllamaInstaller():downloadOllamaInstaller())} disabled={ollamaBusy}>{ollamaBusy?<LoaderCircle size={15} className="spin"/>:ollamaInstallerReady?<ExternalLink size={15}/>:<Download size={15}/>} {ollamaBusy?"Working…":ollamaInstallerReady?"Install Ollama":"Download Ollama"}</button></div>}
+                      <div className="ollama-storage">
+                        <div className="ollama-storage-copy">
+                          <div><strong>Model storage</strong><span>Choose which drive stores downloaded Ollama models.</span></div>
+                          <code>{ollamaModelsPath || "Ollama default location"}</code>
+                        </div>
+                        <button className="settings-secondary" onClick={()=>void chooseOllamaModelsDirectory()} disabled={ollamaPathBusy}>
+                          {ollamaPathBusy?<LoaderCircle size={15} className="spin"/>:<ExternalLink size={15}/>}
+                          {ollamaPathBusy?"Saving…":"Choose folder"}
+                        </button>
+                      </div>
+                      <div className="ollama-storage-note"><CircleHelp size={14}/><span>Changing this location updates Windows' <code>OLLAMA_MODELS</code> setting. Restart Ollama for the new location to take effect.</span></div>
                       <div className="ollama-models-head"><strong>Installed models</strong><span>{ollamaModels.length} local model{ollamaModels.length===1?"":"s"}</span></div>
                       <div className="ollama-models">{ollamaModels.length?ollamaModels.map(model=><div className={draft.model===model?"ollama-model active":"ollama-model"} key={model} onClick={()=>setDraft({...draft,model})}><span><b>{model}</b>{draft.model===model&&<em>Selected</em>}</span><button className="icon-button" onClick={e=>{e.stopPropagation();void deleteOllamaModel(model)}} disabled={ollamaDeleting===model} aria-label={"Delete "+model}>{ollamaDeleting===model?<LoaderCircle size={14} className="spin"/>:<Trash2 size={14}/>}</button></div>):<div className="ollama-empty">No local models installed. Enter a model name below to download one.</div>}</div>
                       <div className="ollama-download"><input value={ollamaModelInput} onChange={e=>setOllamaModelInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")void pullOllamaModel()}} placeholder="Model name, e.g. qwen3:8b"/><button className="settings-primary" onClick={()=>void pullOllamaModel()} disabled={ollamaPulling||!ollamaModelInput.trim()}>{ollamaPulling?<LoaderCircle size={15} className="spin"/>:<Download size={15}/>} {ollamaPulling?"Downloading…":"Download model"}</button></div>
