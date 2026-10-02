@@ -10,9 +10,7 @@ type ChatMessage = {
   content: string;
 };
 
-type ChatViewProps = {
-  settings: EfithSettings;
-};
+type ChatViewProps = { settings: EfithSettings };
 
 export function ChatView({ settings }: ChatViewProps) {
   const [message, setMessage] = useState("");
@@ -23,36 +21,24 @@ export function ChatView({ settings }: ChatViewProps) {
     const content = message.trim();
     if (!content || loading) return;
 
-    const userMessage: ChatMessage = {
-      id: Date.now(),
-      role: "user",
-      content,
-    };
-
+    const userMessage = { id: Date.now(), role: "user" as const, content };
     const nextMessages = [...messages, userMessage];
     setMessages(nextMessages);
     setMessage("");
     setLoading(true);
 
     try {
-      const baseUrl = settings.apiUrl || "";
-      const response = await fetch(`${baseUrl}/api/chat`, {
+      const response = await fetch(`${settings.apiUrl || ""}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          provider: settings.provider,
           model: settings.model,
-          messages: nextMessages.map(({ role, content: text }) => ({
-            role,
-            content: text,
-          })),
+          messages: nextMessages.map(({ role, content: text }) => ({ role, content: text })),
         }),
       });
-
       const payload = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(payload.error ?? "EFITH backend request failed.");
-      }
+      if (!response.ok) throw new Error(payload.error ?? "EFITH backend request failed.");
 
       setMessages((current) => [
         ...current,
@@ -68,10 +54,9 @@ export function ChatView({ settings }: ChatViewProps) {
         {
           id: Date.now() + 1,
           role: "assistant",
-          content:
-            error instanceof Error
-              ? `I couldn't reach the EFITH backend: ${error.message}`
-              : "I couldn't reach the EFITH backend.",
+          content: error instanceof Error
+            ? `I couldn't reach the EFITH backend: ${error.message}`
+            : "I couldn't reach the EFITH backend.",
         },
       ]);
     } finally {
@@ -80,25 +65,15 @@ export function ChatView({ settings }: ChatViewProps) {
   };
 
   const hasMessages = messages.length > 0;
-
   return (
     <div className={`chat-content ${hasMessages ? "chat-content--active" : ""}`}>
       {!hasMessages && <WelcomeScreen />}
-
       {hasMessages && (
         <div className="message-list">
-          {messages.map((item) => (
-            <Message key={item.id} {...item} />
-          ))}
-          {loading && (
-            <Message
-              role="assistant"
-              content="Thinking..."
-            />
-          )}
+          {messages.map((item) => <Message key={item.id} {...item} />)}
+          {loading && <Message role="assistant" content="Thinking..." />}
         </div>
       )}
-
       <Composer value={message} onChange={setMessage} onSend={sendMessage} />
     </div>
   );
