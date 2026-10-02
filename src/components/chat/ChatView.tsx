@@ -9,6 +9,7 @@ type ChatMessage = {
   role: "user" | "assistant";
   content: string;
   auth?: { providerName?: string; mcpServerId?: string; authUrl?: string };
+  toolActivities?: { id: string; label: string; durationMs: number; status: "done" | "error" }[];
 };
 
 type ChatViewProps = { settings: EfithSettings };
@@ -50,6 +51,7 @@ export function ChatView({ settings }: ChatViewProps) {
             mcpServerId: payload.mcpServerId,
             authUrl: payload.authUrl,
           },
+          toolActivities: payload.toolActivities ?? [],
         }]);
         return;
       }
@@ -61,6 +63,7 @@ export function ChatView({ settings }: ChatViewProps) {
           id: Date.now() + 1,
           role: "assistant",
           content: payload.message?.content ?? "The backend returned an empty response.",
+          toolActivities: payload.toolActivities ?? [],
         },
       ]);
     } catch (error) {
@@ -86,7 +89,7 @@ export function ChatView({ settings }: ChatViewProps) {
       {hasMessages && (
         <div className="message-list">
           {messages.map((item) => <Message key={item.id} {...item} />)}
-          {loading && <Message role="assistant" content="Thinking..." />}
+          {loading && <Message role="assistant" content="" thinking />}
         </div>
       )}
       <Composer value={message} onChange={setMessage} onSend={sendMessage} />
