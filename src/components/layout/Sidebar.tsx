@@ -4,11 +4,10 @@ import { Menu, Plus, Settings } from "lucide-react";
 type SidebarProps = {
   open: boolean;
   onClose: () => void;
+  onSettings: () => void;
 };
 
-const chats = ["AnimeVault", "EFITH architecture", "PC build"];
-
-export function Sidebar({ open, onClose }: SidebarProps) {
+export function Sidebar({ open, onClose, onSettings }: SidebarProps) {
   return (
     <motion.aside
       className="sidebar"
@@ -29,15 +28,11 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
         <div className="sidebar-section">
           <span className="section-label">Chats</span>
-          {chats.map((chat) => (
-            <button className="chat-item" key={chat}>
-              <span>{chat}</span>
-            </button>
-          ))}
+          <div className="empty-state">No saved chats yet</div>
         </div>
 
         <div className="sidebar-bottom">
-          <button className="chat-item">
+          <button className="chat-item" onClick={onSettings}>
             <Settings size={17} />
             <span>Settings</span>
           </button>
