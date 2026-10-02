@@ -9,5 +9,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     launchInstaller: () => ipcRenderer.invoke("efith:ollama:launch-installer"),
     getModelsPath: () => ipcRenderer.invoke("efith:ollama:get-models-path"),
     chooseModelsDirectory: () => ipcRenderer.invoke("efith:ollama:choose-model-directory"),
+    restart: (modelsPath?: string) => ipcRenderer.invoke("efith:ollama:restart", modelsPath),
   },
 });
