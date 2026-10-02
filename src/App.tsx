@@ -22,6 +22,10 @@ const defaultSettings: EfithSettings = {
 
 export default function App() {
   if (window.location.pathname.includes("/mcp/auth/")) return <McpAuthPage />;
+  return <EfithApp />;
+}
+
+function EfithApp() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<EfithSettings>(() => {
