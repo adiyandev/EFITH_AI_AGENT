@@ -40,7 +40,7 @@ function loadMcpServers(): McpServerConfig[] {
 
 let configuredMcpServers = loadMcpServers();
 
-await app.register(cors, { origin: true });
+await app.register(cors, { origin: true, credentials: true });
 
 type ChatMessage = {
   role: "system" | "user" | "assistant" | "tool";
