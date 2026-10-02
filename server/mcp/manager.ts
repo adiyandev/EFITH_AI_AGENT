@@ -110,10 +110,16 @@ class GitHubOAuthProvider implements OAuthClientProvider {
 export class McpManager {
   private readonly connections = new Map<string, Connection>();
   private readonly oauthSessions = new Map<string, OAuthSession>();
+  private runtimeGitHubOAuth: { clientId: string; clientSecret: string } | null = null;
+
+  configureGitHubOAuth(clientId: string, clientSecret: string) {
+    this.runtimeGitHubOAuth = { clientId: clientId.trim(), clientSecret: clientSecret.trim() };
+    this.oauthSessions.delete("github");
+  }
 
   private githubOAuthConfig() {
-    const clientId = process.env.GITHUB_MCP_CLIENT_ID?.trim();
-    const clientSecret = process.env.GITHUB_MCP_CLIENT_SECRET?.trim();
+    const clientId = this.runtimeGitHubOAuth?.clientId || process.env.GITHUB_MCP_CLIENT_ID?.trim();
+    const clientSecret = this.runtimeGitHubOAuth?.clientSecret || process.env.GITHUB_MCP_CLIENT_SECRET?.trim();
     const callbackUrl =
       process.env.GITHUB_MCP_OAUTH_REDIRECT_URI?.trim() ||
       "http://127.0.0.1:8787/api/mcp/oauth/callback/github";
