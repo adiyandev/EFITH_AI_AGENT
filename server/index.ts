@@ -59,6 +59,18 @@ function getProviderError(payload: any, fallback: string) {
   return payload?.error?.message ?? payload?.error?.detail ?? payload?.message ?? fallback;
 }
 
+function requestLogSafe(provider: ProviderName, status: number, attempt: number, body: string) {
+  app.log.warn(
+    {
+      provider,
+      status,
+      attempt,
+      response: body.slice(0, 1000),
+    },
+    "Transient provider error; retrying",
+  );
+}
+
 async function callOpenAICompatible(
   provider: ProviderName,
   messages: ChatMessage[],
@@ -67,27 +79,63 @@ async function callOpenAICompatible(
 ) {
   const config = getProviderConfig(provider, apiKey);
 
-  const response = await fetch(`${config.baseUrl}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature: 0.7,
-    }),
-  });
+  const maxAttempts = 3;
 
-  const payload = await response.json().catch(() => ({}));
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    let response: Response;
 
-  if (!response.ok) {
-    const detail = getProviderError(payload, `${provider} request failed.`);
+    try {
+      response = await fetch(`${config.baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+          "x-goog-api-client": "efith-ai-agent/0.1.0",
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature: 0.7,
+        }),
+      });
+    } catch (error) {
+      if (attempt === maxAttempts) {
+        throw new Error(
+          `${provider} request failed after ${maxAttempts} attempts: ${error instanceof Error ? error.message : "network error"}`,
+        );
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 1000 * 2 ** (attempt - 1)));
+      continue;
+    }
+
+    const rawBody = await response.text();
+    let payload: any = {};
+
+    try {
+      payload = rawBody ? JSON.parse(rawBody) : {};
+    } catch {
+      payload = {};
+    }
+
+    if (response.ok) {
+      return payload?.choices?.[0]?.message?.content;
+    }
+
+    const transient = response.status === 408 || response.status === 429 || response.status >= 500;
+
+    if (transient && attempt < maxAttempts) {
+      requestLogSafe(provider, response.status, attempt, rawBody);
+      await new Promise((resolve) => setTimeout(resolve, 1000 * 2 ** (attempt - 1)));
+      continue;
+    }
+
+    const fallback = rawBody.trim() || `${provider} request failed.`;
+    const detail = getProviderError(payload, fallback);
     throw new Error(`${provider} request failed (HTTP ${response.status}): ${detail}`);
   }
 
-  return payload?.choices?.[0]?.message?.content;
+  throw new Error(`${provider} request failed after ${maxAttempts} attempts.`);
 }
 
 async function callAnthropic(messages: ChatMessage[], model: string, apiKey: string) {
