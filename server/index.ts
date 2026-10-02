@@ -15,7 +15,22 @@ function loadMcpServers(): McpServerConfig[] {
   try {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) throw new Error("MCP_SERVERS must be a JSON array.");
-    return parsed as McpServerConfig[];
+    const servers = parsed as McpServerConfig[];
+    if (
+      process.env.GITHUB_MCP_CLIENT_ID?.trim() &&
+      process.env.GITHUB_MCP_CLIENT_SECRET?.trim() &&
+      !servers.some((server) => server.id === "github")
+    ) {
+      servers.push({
+        id: "github",
+        name: "GitHub",
+        transport: "streamable-http",
+        url: "https://api.githubcopilot.com/mcp/",
+        providerName: "GitHub",
+        requiresAuth: true,
+      });
+    }
+    return servers;
   } catch (error) {
     app.log.error(error, "Invalid MCP_SERVERS configuration");
     return [];
