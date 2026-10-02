@@ -2,17 +2,14 @@ import { useEffect, useState } from "react";
 import { Sidebar } from "./components/layout/Sidebar";
 import { TopBar } from "./components/layout/TopBar";
 import { ChatView } from "./components/chat/ChatView";
-import {
-  EfithSettings,
-  SettingsModal,
-} from "./components/settings/SettingsModal";
+import { EfithSettings, SettingsModal, Provider } from "./components/settings/SettingsModal";
 import "./styles/app.css";
 
 const SETTINGS_KEY = "efith.settings";
-
 const defaultSettings: EfithSettings = {
   apiUrl: import.meta.env.VITE_API_URL ?? "",
-  model: import.meta.env.VITE_EFITH_MODEL ?? "gpt-4o-mini",
+  provider: (import.meta.env.VITE_EFITH_PROVIDER as Provider) ?? "gemini",
+  model: import.meta.env.VITE_EFITH_MODEL ?? "gemini-3.8-flash",
 };
 
 export default function App() {
@@ -22,38 +19,19 @@ export default function App() {
     try {
       const saved = localStorage.getItem(SETTINGS_KEY);
       return saved ? { ...defaultSettings, ...JSON.parse(saved) } : defaultSettings;
-    } catch {
-      return defaultSettings;
-    }
+    } catch { return defaultSettings; }
   });
 
-  useEffect(() => {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-  }, [settings]);
+  useEffect(() => { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }, [settings]);
 
   return (
     <main className="app-shell">
-      <Sidebar
-        open={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        onSettings={() => setSettingsOpen(true)}
-      />
-
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onSettings={() => setSettingsOpen(true)} />
       <section className="chat-panel">
-        <TopBar
-          sidebarOpen={sidebarOpen}
-          onOpenSidebar={() => setSidebarOpen(true)}
-          model={settings.model}
-        />
+        <TopBar sidebarOpen={sidebarOpen} onOpenSidebar={() => setSidebarOpen(true)} model={settings.model} />
         <ChatView settings={settings} />
       </section>
-
-      <SettingsModal
-        open={settingsOpen}
-        settings={settings}
-        onClose={() => setSettingsOpen(false)}
-        onSave={setSettings}
-      />
+      <SettingsModal open={settingsOpen} settings={settings} onClose={() => setSettingsOpen(false)} onSave={setSettings} />
     </main>
   );
 }
