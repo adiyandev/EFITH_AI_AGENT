@@ -11,7 +11,7 @@ type ChatMessage = {
   content: string;
 };
 
-type ProviderName = "openai" | "gemini" | "anthropic";
+type ProviderName = "openai" | "gemini" | "anthropic" | "groq";
 
 type ProviderRequest = {
   provider?: ProviderName;
@@ -36,6 +36,10 @@ const PROVIDERS: Record<ProviderName, { baseUrl: string; defaultModel: string }>
     baseUrl: "https://api.anthropic.com/v1",
     defaultModel: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5-5",
   },
+  groq: {
+    baseUrl: "https://api.groq.com/openai/v1",
+    defaultModel: process.env.GROQ_MODEL ?? "openai/gpt-oss-120b",
+  },
 };
 
 function getProviderConfig(provider: ProviderName, requestApiKey?: string) {
@@ -45,7 +49,9 @@ function getProviderConfig(provider: ProviderName, requestApiKey?: string) {
       ? process.env.OPENAI_API_KEY
       : provider === "gemini"
         ? process.env.GEMINI_API_KEY
-        : process.env.ANTHROPIC_API_KEY;
+        : provider === "anthropic"
+          ? process.env.ANTHROPIC_API_KEY
+          : process.env.GROQ_API_KEY;
 
   return {
     provider,
@@ -90,7 +96,7 @@ async function callOpenAICompatible(
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${apiKey}`,
-          "x-goog-api-client": "efith-ai-agent/0.1.0",
+          ...(provider === "gemini" ? { "x-goog-api-client": "efith-ai-agent/0.1.0" } : {}),
         },
         body: JSON.stringify({
           model,
