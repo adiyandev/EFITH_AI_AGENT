@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft, ExternalLink, ShieldCheck } from "lucide-react";
-import "./../styles/app.css";
 
 type McpServer = {
   id: string;
