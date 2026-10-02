@@ -4,6 +4,7 @@ import "dotenv/config";
 import { McpManager } from "./mcp/manager.js";
 import type { McpServerConfig } from "./mcp/types.js";
 import { listConnectors } from "./connectors/registry.js";
+import { configureGoogleOAuth, finishGoogleOAuth, getGoogleOAuthConfig, getGoogleOAuthUrl, isGoogleConnected, runGoogleTool, GOOGLE_TOOLS } from "./google.js";
 
 const app = Fastify({ logger: true });
 const mcp = new McpManager();
@@ -405,6 +406,7 @@ async function callAnthropic(messages: ChatMessage[], model: string, apiKey: str
 
 async function getAgentTools(): Promise<AgentTool[]> {
   const tools: AgentTool[] = [];
+  if (isGoogleConnected()) for (const tool of GOOGLE_TOOLS) tools.push({ type:"function", function:tool as any, mcpServerId:"google", mcpToolName:tool.name });
   for (const server of configuredMcpServers) {
     try {
       if (!mcp.listConnections().some((connection) => connection.id === server.id)) await mcp.connect(server);
@@ -429,9 +431,8 @@ async function getAgentTools(): Promise<AgentTool[]> {
 
 async function runAgentTool(tool: AgentTool, rawArguments: string) {
   const args = rawArguments ? JSON.parse(rawArguments) : {};
-  if (tool.mcpServerId === "web" && tool.mcpToolName === "search") {
-    return runWebSearch(String(args.query ?? ""));
-  }
+  if (tool.mcpServerId === "web" && tool.mcpToolName === "search") return runWebSearch(String(args.query ?? ""));
+  if (tool.mcpServerId === "google") return runGoogleTool(tool.mcpToolName, args);
   return runMcpTool(tool, rawArguments);
 }
 
@@ -568,6 +569,10 @@ app.get<{ Params: { id: string } }>("/api/mcp/oauth/callback/:id", async (reques
   }
 });
 
+app.post<{Body:{clientId?:string;clientSecret?:string}}>("/api/google/oauth-config",async(request,reply)=>{const id=request.body?.clientId?.trim(),secret=request.body?.clientSecret?.trim();if(!id||!secret)return reply.code(400).send({error:"Google Client ID and Client Secret are required."});const redirectUri=process.env.GOOGLE_OAUTH_REDIRECT_URI?.trim()||"http://127.0.0.1:8787/api/google/oauth/callback";configureGoogleOAuth(id,secret,redirectUri);return {configured:true,redirectUri};});
+app.get("/api/google/oauth-config",async()=>{const c=getGoogleOAuthConfig();return {configured:Boolean(c),connected:isGoogleConnected(),redirectUri:c?.redirectUri||"http://127.0.0.1:8787/api/google/oauth/callback"};});
+app.get("/api/google/oauth/start",async(_r,reply)=>{try{return reply.redirect(getGoogleOAuthUrl(),302);}catch(e){return reply.code(400).send({error:e instanceof Error?e.message:"Google OAuth is not configured."});}});
+app.get("/api/google/oauth/callback",async(request,reply)=>{try{const q=request.query as Record<string,unknown>;if(q.error)return reply.code(400).type("text/html").send("<h1>Google authorization was not completed.</h1>");await finishGoogleOAuth(String(q.code||""),String(q.state||""));const web=(process.env.EFITH_WEB_URL||"http://localhost:5173/EFITH_AI_AGENT").replace(/\/$/,"");return reply.redirect(web+"/settings",302);}catch(e){request.log.error(e,"Google OAuth callback failed");return reply.code(400).type("text/html").send("<h1>Google authorization failed</h1><p>Check the EFITH backend logs.</p>");}});
 app.get("/api/mcp/servers", async () => {
   return {
     servers: configuredMcpServers.map((server) => ({
