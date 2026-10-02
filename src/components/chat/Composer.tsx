@@ -5,9 +5,11 @@ type ComposerProps = {
   value: string;
   onChange: (value: string) => void;
   onSend: () => void;
+  onStop: () => void;
+  loading: boolean;
 };
 
-export function Composer({ value, onChange, onSend }: ComposerProps) {
+export function Composer({ value, onChange, onSend, onStop, loading }: ComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -43,13 +45,8 @@ export function Composer({ value, onChange, onSend }: ComposerProps) {
           <SlidersHorizontal size={18} />
         </button>
 
-        <button
-          className="send-button"
-          disabled={!value.trim()}
-          onClick={onSend}
-          aria-label="Send message"
-        >
-          <Send size={17} />
+        <button className={`send-button ${loading ? "send-button--stop" : ""}`} disabled={!loading && !value.trim()} onClick={loading ? onStop : onSend} aria-label={loading ? "Stop response" : "Send message"}>
+          {loading ? <span className="stop-icon" /> : <Send size={17} />}
         </button>
       </div>
 
