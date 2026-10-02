@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { CalendarDays, Code2, Globe2, Sparkles } from "lucide-react";
+import { CalendarDays, Code2, Globe2 } from "lucide-react";
 
 const suggestions = [
   { icon: Globe2, title: "Search the web", text: "Find the latest information", prompt: "Search the web for the latest news and useful updates." },
@@ -21,7 +21,7 @@ export function WelcomeScreen({ onSuggestion }: WelcomeScreenProps) {
     >
       <div className="welcome-glow" aria-hidden="true" />
       <div className="efith-mark">
-        <Sparkles size={23} />
+        <img src="/EFITH_AI_AGENT/EFITH%20logo.png" alt="EFITH" />
       </div>
       <div className="welcome-eyebrow">EFITH AI</div>
       <h1>What are we working on?</h1>
