@@ -112,7 +112,7 @@ async function findOllamaExecutable() {
 
 async function getOllamaStatus() {
   if (process.platform !== "win32") {
-    return { platform: process.platform, supported: false, installed: false, running: false, executablePath: null, version: null };
+    return { platform: process.platform, supported: false, installed: false, running: false, executablePath: null, version: null, modelsPath: null };
   }
 
   const executablePath = await findOllamaExecutable();
