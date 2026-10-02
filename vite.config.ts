@@ -1,9 +1,9 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
-  base: "/EFITH_AI_AGENT/",
+  base: mode === "electron" ? "/EFITH_AI_AGENT/" : "/EFITH_AI_AGENT/",
   server: {
     proxy: {
       "/api": {
@@ -12,4 +12,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));
