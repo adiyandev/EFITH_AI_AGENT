@@ -251,13 +251,15 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
               </select>
             </label>
 
-            <label>
-              <span>{labels[draft.provider]} API key</span>
-              <input type="password" value={apiKey} onChange={(e) => {
-                setDraft({ ...draft, apiKeys: { ...draft.apiKeys, [draft.provider]: e.target.value } });
-                setTestResult(null);
-              }} placeholder="Paste your API key" autoComplete="off" spellCheck={false} />
-            </label>
+            {draft.provider !== "ollama" && (
+              <label>
+                <span>{labels[draft.provider]} API key</span>
+                <input type="password" value={apiKey} onChange={(e) => {
+                  setDraft({ ...draft, apiKeys: { ...draft.apiKeys, [draft.provider]: e.target.value } });
+                  setTestResult(null);
+                }} placeholder="Paste your API key" autoComplete="off" spellCheck={false} />
+              </label>
+            )}
 
             <div className="settings-action-row">
               <button className="test-connection" onClick={testConnection} disabled={testing}>
