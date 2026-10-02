@@ -32,7 +32,8 @@
 .composer-icon,
 .send-button,
 .settings-cancel,
-.settings-save {
+.settings-save,
+.test-connection {
   border: 0;
   background: transparent;
   cursor: pointer;
@@ -406,7 +407,8 @@
   font-weight: 600;
 }
 
-.settings-section input {
+.settings-section input,
+.settings-section select {
   width: 100%;
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -414,10 +416,53 @@
   background: var(--bg);
   color: var(--text);
   padding: 11px 12px;
+  font: inherit;
 }
 
-.settings-section input:focus {
+.settings-section select {
+  cursor: pointer;
+  appearance: auto;
+}
+
+.settings-section input:focus,
+.settings-section select:focus {
   border-color: rgba(255, 255, 255, 0.2);
+}
+
+.test-connection {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 9px 12px;
+  color: var(--text);
+  background: var(--bg);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.test-connection:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.test-connection:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.settings-test {
+  margin: -6px 0 0;
+  font-size: 11px;
+}
+
+.settings-test--success {
+  color: #8de7ad;
+}
+
+.settings-test--error {
+  color: #ff9292;
 }
 
 .settings-help {
