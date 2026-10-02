@@ -224,7 +224,7 @@ async function callOpenAICompatible(
           ...(tools.length ? {
             tools: tools.map(({ mcpServerId: _s, mcpToolName: _t, ...tool }) => tool),
             tool_choice: "auto",
-            ...(provider === "groq" ? { parallel_tool_calls: true } : {}),
+            ...(provider === "groq" ? { parallel_tool_calls: false } : {}),
           } : {}),
         }),
       });
