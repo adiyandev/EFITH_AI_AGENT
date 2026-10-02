@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, safeStorage, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -19,6 +19,7 @@ const DEFAULT_SETTINGS = {
   model: "gemini-3.8-flash",
   apiKeys: { openai: "", gemini: "", anthropic: "", groq: "", ollama: "" },
   tavilyApiKey: "",
+  ollamaModelsPath: "",
 };
 
 app.setAppUserModelId(APP_ID);
@@ -136,6 +137,61 @@ async function getOllamaStatus() {
     running,
     executablePath,
     version,
+    modelsPath: getOllamaModelsPath(),
+  };
+}
+
+function getOllamaModelsPath() {
+  const stored = readStoredSettings().ollamaModelsPath;
+  return typeof stored === "string" && stored.trim()
+    ? stored.trim()
+    : process.env.OLLAMA_MODELS?.trim() || null;
+}
+
+async function setOllamaModelsPath(modelsPath: string) {
+  if (process.platform !== "win32") {
+    throw new Error("Custom Ollama model storage is currently supported on Windows only.");
+  }
+
+  const resolvedPath = path.resolve(modelsPath.trim());
+  if (!resolvedPath) throw new Error("Choose a valid model storage folder.");
+
+  await fs.promises.mkdir(resolvedPath, { recursive: true });
+
+  await execFile(
+    "powershell.exe",
+    [
+      "-NoProfile",
+      "-Command",
+      "[Environment]::SetEnvironmentVariable('OLLAMA_MODELS', $env:EFITH_OLLAMA_MODELS, 'User')",
+    ],
+    {
+      windowsHide: true,
+      env: { ...process.env, EFITH_OLLAMA_MODELS: resolvedPath },
+    },
+  );
+
+  writeStoredSettings({
+    ...readStoredSettings(),
+    ollamaModelsPath: resolvedPath,
+  });
+
+  return { path: resolvedPath, restartRequired: true };
+}
+
+async function chooseOllamaModelsPath() {
+  const result = await dialog.showOpenDialog({
+    title: "Choose Ollama model storage folder",
+    properties: ["openDirectory", "createDirectory"],
+  });
+
+  if (result.canceled || !result.filePaths[0]) {
+    return { canceled: true, path: getOllamaModelsPath(), restartRequired: false };
+  }
+
+  return {
+    canceled: false,
+    ...(await setOllamaModelsPath(result.filePaths[0])),
   };
 }
 
@@ -175,6 +231,8 @@ async function launchOllamaInstaller() {
 ipcMain.handle("efith:ollama:status", () => getOllamaStatus());
 ipcMain.handle("efith:ollama:download-installer", () => downloadOllamaInstaller());
 ipcMain.handle("efith:ollama:launch-installer", () => launchOllamaInstaller());
+ipcMain.handle("efith:ollama:get-models-path", () => ({ path: getOllamaModelsPath() }));
+ipcMain.handle("efith:ollama:choose-model-directory", () => chooseOllamaModelsPath());
 
 ipcMain.handle("efith:settings:get", () => readStoredSettings());
 ipcMain.handle("efith:settings:save", (_event, settings) => {
