@@ -120,9 +120,7 @@ export class McpManager {
   private githubOAuthConfig() {
     const clientId = this.runtimeGitHubOAuth?.clientId || process.env.GITHUB_MCP_CLIENT_ID?.trim();
     const clientSecret = this.runtimeGitHubOAuth?.clientSecret || process.env.GITHUB_MCP_CLIENT_SECRET?.trim();
-    const callbackUrl =
-      process.env.GITHUB_MCP_OAUTH_REDIRECT_URI?.trim() ||
-      "http://127.0.0.1:8787/api/mcp/oauth/callback/github";
+    const callbackUrl = "http://127.0.0.1:8787/api/mcp/oauth/callback/github";
 
     if (!clientId || !clientSecret) return null;
 
