@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Composer } from "./Composer";
 import { Message } from "./Message";
 import { WelcomeScreen } from "./WelcomeScreen";
@@ -22,6 +22,7 @@ export function ChatView({ settings }: ChatViewProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [chatId, setChatId] = useState(() => `chat-${Date.now()}`);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const save = () => {
@@ -62,11 +63,14 @@ export function ChatView({ settings }: ChatViewProps) {
     setMessages(nextMessages);
     setMessage("");
     setLoading(true);
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     try {
       const response = await fetch(`${settings.apiUrl || ""}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           provider: settings.provider,
           model: settings.model,
@@ -101,6 +105,7 @@ export function ChatView({ settings }: ChatViewProps) {
         },
       ]);
     } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
       setMessages((current) => [
         ...current,
         {
@@ -112,6 +117,7 @@ export function ChatView({ settings }: ChatViewProps) {
         },
       ]);
     } finally {
+      abortRef.current = null;
       setLoading(false);
     }
   };
@@ -123,10 +129,10 @@ export function ChatView({ settings }: ChatViewProps) {
       {hasMessages && (
         <div className="message-list">
           {messages.map((item) => <Message key={item.id} {...item} />)}
-          {loading && <Message role="assistant" content="" thinking />}
+          {loading && <Message role="assistant" content="" thinking toolActivities={[{ id: "live-tool", label: "Calling tool", durationMs: 0, status: "running" }]} />}
         </div>
       )}
-      <Composer value={message} onChange={setMessage} onSend={sendMessage} />
+      <Composer value={message} onChange={setMessage} onSend={sendMessage} onStop={() => abortRef.current?.abort()} loading={loading} />
     </div>
   );
 }
