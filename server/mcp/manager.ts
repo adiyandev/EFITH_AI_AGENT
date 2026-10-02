@@ -1,6 +1,5 @@
-import { Client } from "@modelcontextprotocol/client";
+import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/client/streamableHttp";
 import type { McpServerConfig, McpTool } from "./types.js";
 
 type Connection = {
