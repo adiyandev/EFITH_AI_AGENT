@@ -22,7 +22,7 @@ function loadMcpServers(): McpServerConfig[] {
   }
 }
 
-const configuredMcpServers = loadMcpServers();
+let configuredMcpServers = loadMcpServers();
 
 await app.register(cors, { origin: true });
 
@@ -274,8 +274,49 @@ app.get("/api/mcp/servers", async () => {
       name: server.name,
       transport: server.transport,
       url: server.transport === "streamable-http" ? server.url : undefined,
+      authUrl: server.authUrl,
+      providerName: server.providerName ?? server.name,
+      requiresAuth: server.requiresAuth ?? false,
       connected: mcp.listConnections().some((connection) => connection.id === server.id),
     })),
+  };
+});
+
+app.post<{ Body: { id?: string; name?: string; url?: string; authUrl?: string; providerName?: string; requiresAuth?: boolean } }>("/api/mcp/config", async (request, reply) => {
+  const { id, name, url, authUrl, providerName, requiresAuth } = request.body ?? {};
+
+  if (!id || !name || !url) {
+    return reply.code(400).send({ error: "MCP id, name, and URL are required." });
+  }
+
+  if (!/^https?:\\/\\//i.test(url)) {
+    return reply.code(400).send({ error: "Only HTTP(S) MCP servers can be added from Settings." });
+  }
+
+  const server: McpServerConfig = {
+    id,
+    name,
+    transport: "streamable-http",
+    url,
+    authUrl,
+    providerName,
+    requiresAuth: Boolean(requiresAuth),
+  };
+
+  configuredMcpServers = [
+    ...configuredMcpServers.filter((item) => item.id !== id),
+    server,
+  ];
+
+  return {
+    id: server.id,
+    name: server.name,
+    transport: server.transport,
+    url: server.url,
+    authUrl: server.authUrl,
+    providerName: server.providerName ?? server.name,
+    requiresAuth: server.requiresAuth ?? false,
+    connected: mcp.listConnections().some((connection) => connection.id === server.id),
   };
 });
 
@@ -334,8 +375,16 @@ app.post<{ Body: { id?: string; tool?: string; arguments?: Record<string, unknow
       return await mcp.callTool(id, tool, arguments_ ?? {});
     } catch (error) {
       request.log.error(error, "MCP tool call failed");
-      return reply.code(502).send({
-        error: error instanceof Error ? error.message : "MCP tool call failed.",
+      const message = error instanceof Error ? error.message : "MCP tool call failed.";
+      const server = configuredMcpServers.find((item) => item.id === id);
+      const unauthorized = /unauthorized|authentication|not authenticated|401/i.test(message);
+
+      return reply.code(unauthorized ? 401 : 502).send({
+        error: message,
+        requiresAuth: unauthorized || Boolean(server?.requiresAuth),
+        authUrl: server?.authUrl,
+        providerName: server?.providerName ?? server?.name,
+        mcpServerId: id,
       });
     }
   },
