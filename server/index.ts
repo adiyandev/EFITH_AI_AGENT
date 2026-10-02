@@ -94,9 +94,7 @@ async function callAnthropic(messages: ChatMessage[], model: string, apiKey: str
   const system = messages
     .filter((message) => message.role === "system")
     .map((message) => message.content)
-    .join("
-
-");
+    .join("\n\n");
 
   const input = messages
     .filter((message) => message.role !== "system")
