@@ -126,7 +126,7 @@ export function ChatView({ settings }: ChatViewProps) {
   const hasMessages = messages.length > 0;
   return (
     <div className={`chat-content ${hasMessages ? "chat-content--active" : ""}`}>
-      {!hasMessages && <WelcomeScreen />}
+      {!hasMessages && <WelcomeScreen onSuggestion={(prompt) => { setMessage(prompt); }} />}
       {hasMessages && (
         <div className="message-list">
           {messages.map((item) => <Message key={item.id} {...item} />)}
