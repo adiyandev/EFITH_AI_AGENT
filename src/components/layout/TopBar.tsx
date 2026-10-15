@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Check, ChevronDown, LoaderCircle, Menu, RefreshCw, Search, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { EfithSettings, Provider } from "../settings/SettingsModal";
+import { ProviderIcon } from "./ProviderIcon";
 
 type ModelOption = { provider: Provider; model: string };
 type TopBarProps = {
@@ -11,8 +12,7 @@ type TopBarProps = {
   onChange: (changes: Partial<EfithSettings>) => void;
 };
 
-const providerLabels: Record<Provider, string> = { openai: "OpenAI", gemini: "Gemini", anthropic: "Claude", groq: "Groq" };
-const providerIcons: Record<Provider, string> = { openai: "O", gemini: "G", anthropic: "C", groq: "GQ" };
+const providerLabels: Record<Provider, string> = { openai: "OpenAI", gemini: "Gemini", anthropic: "Claude", groq: "Groq", ollama: "Ollama" };
 
 export function TopBar({ sidebarOpen, onOpenSidebar, settings, onChange }: TopBarProps) {
   const [open, setOpen] = useState(false);
@@ -59,7 +59,7 @@ export function TopBar({ sidebarOpen, onOpenSidebar, settings, onChange }: TopBa
             onClick={() => setOpen((value) => !value)}
             aria-expanded={open}
           >
-            <span className="model-button-icon">{providerIcons[settings.provider]}</span>
+            <span className={`model-button-icon model-button-icon--${settings.provider}`}><ProviderIcon provider={settings.provider} size={19} /></span>
             <span className="model-button-copy">
               <small>{providerLabels[settings.provider]}</small>
               <strong>{settings.model || "Select model"}</strong>
@@ -100,12 +100,12 @@ export function TopBar({ sidebarOpen, onOpenSidebar, settings, onChange }: TopBa
                         if (!group.length) return null;
                         return (
                           <div className="model-group" key={provider}>
-                            <div className="model-group-title"><span className={`provider-pill provider-pill--${provider}`}>{providerIcons[provider]}</span><span>{providerLabels[provider]}</span><em>{group.length}</em></div>
+                            <div className="model-group-title"><span className={`provider-pill provider-pill--${provider}`}><ProviderIcon provider={provider} size={16} /></span><span>{providerLabels[provider]}</span><em>{group.length}</em></div>
                             {group.map((item) => {
                               const active = item.provider === settings.provider && item.model === settings.model;
                               return (
                                 <motion.button key={item.provider + item.model} className={active ? "model-option model-option--active" : "model-option"} whileTap={{ scale: .985 }} onClick={() => { onChange({ provider: item.provider, model: item.model }); setOpen(false); }}>
-                                  <span><strong>{item.model}</strong><small>{providerLabels[item.provider]}</small></span>
+                                  <span className="model-option-provider-icon"><ProviderIcon provider={item.provider} size={17} /><span><strong>{item.model}</strong><small>{providerLabels[item.provider]}</small></span></span>
                                   {active && <Check size={15} />}
                                 </motion.button>
                               );
