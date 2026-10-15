@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Check, CircleHelp, Download, ExternalLink, LoaderCircle, Plus, RefreshCw, ShieldCheck, SlidersHorizontal, Sparkles, Trash2, X } from "lucide-react";
+import { ProviderIcon } from "../layout/ProviderIcon";
 
 export type Provider = "openai" | "gemini" | "anthropic" | "groq" | "ollama";
 export type EfithSettings = {
@@ -363,13 +364,16 @@ export function SettingsModal({ open, onClose, settings, onSave }: SettingsModal
 
             <label>
               <span>Provider</span>
-              <select value={draft.provider} onChange={(e) => changeProvider(e.target.value as Provider)}>
-                <option value="openai">OpenAI</option>
-                <option value="gemini">Google Gemini</option>
-                <option value="anthropic">Anthropic Claude</option>
-                <option value="groq">Groq</option>
-                <option value="ollama">Ollama (Local)</option>
-              </select>
+              <div className="provider-select-row">
+                <ProviderIcon provider={draft.provider} size={21} />
+                <select value={draft.provider} onChange={(e) => changeProvider(e.target.value as Provider)}>
+                  <option value="openai">OpenAI</option>
+                  <option value="gemini">Google Gemini</option>
+                  <option value="anthropic">Anthropic Claude</option>
+                  <option value="groq">Groq</option>
+                  <option value="ollama">Ollama (Local)</option>
+                </select>
+              </div>
             </label>
 
             <label>
