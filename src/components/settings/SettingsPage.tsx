@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft, Check, ChevronDown, CircleHelp, Download, ExternalLink, Github, KeyRound, LoaderCircle, Plus, RefreshCw, Search, ShieldCheck, Sparkles, Trash2, Zap } from "lucide-react";
 import type { EfithSettings, Provider } from "./SettingsModal";
+import { ProviderIcon } from "../layout/ProviderIcon";
 
 type McpServer = {
   id: string; name: string; transport: string; url?: string; authUrl?: string;
@@ -357,7 +358,7 @@ export function SettingsPage({ settings, onSave, onBack }: Props) {
                 <section className="settings-panel settings-panel-wide">
                   <div className="settings-panel-heading"><div className="settings-panel-icon"><Sparkles size={17}/></div><div><h2>AI provider</h2><p>Choose the provider and model EFITH should use.</p></div></div>
                   <div className="settings-form-grid">
-                    <label><span>Provider</span><select value={draft.provider} onChange={e=>{ const provider=e.target.value as Provider; const nextModel=provider === "ollama" ? (ollamaModels[0] ?? fallbackModels.ollama[0]) : (fallbackModels[provider][0] ?? ""); setDraft({...draft,provider,model:nextModel}); void fetchProviderModels(provider,draft.apiKeys[provider]??""); }}>{(Object.keys(labels) as Provider[]).map(p=><option key={p} value={p}>{labels[p]}</option>)}</select><small className="settings-field-help">{providerDescriptions[draft.provider]}</small></label>
+                    <label><span>Provider</span><div className="provider-select-row"><ProviderIcon provider={draft.provider} size={21}/><select value={draft.provider} onChange={e=>{ const provider=e.target.value as Provider; const nextModel=provider === "ollama" ? (ollamaModels[0] ?? fallbackModels.ollama[0]) : (fallbackModels[provider][0] ?? ""); setDraft({...draft,provider,model:nextModel}); void fetchProviderModels(provider,draft.apiKeys[provider]??""); }}>{(Object.keys(labels) as Provider[]).map(p=><option key={p} value={p}>{labels[p]}</option>)}</select></div><small className="settings-field-help">{providerDescriptions[draft.provider]}</small></label>
                     <label><span>Model <em>{modelsLoading ? "Fetching live models…" : availableModels.length + " available"}</em></span><div className="settings-select"><select value={draft.model} onChange={e=>setDraft({...draft,model:e.target.value})}>{availableModels.map(m=><option key={m}>{m}</option>)}</select><ChevronDown size={15}/>{modelsLoading&&<LoaderCircle size={13} className="settings-select-spinner spin"/>}</div><small className="settings-field-help">EFITH fetches the models exposed by your selected provider.</small></label>
                     {draft.provider !== "ollama" && <label className="full"><span>{labels[draft.provider]} API key</span><div className="input-icon"><KeyRound size={15}/><input type="password" value={draft.apiKeys[draft.provider]??""} onChange={e=>setDraft({...draft,apiKeys:{...draft.apiKeys,[draft.provider]:e.target.value}})} placeholder="Paste your API key" autoComplete="off" spellCheck={false}/></div><small className="settings-field-help">Authenticates EFITH with {labels[draft.provider]}. Keep this key private.</small></label>}
                   </div>
